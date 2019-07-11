@@ -1,5 +1,8 @@
 #!/anaconda3/bin python
 
+# Trying PQ transfer matrix method as demonstrated in lecture 5 on the following website
+# http://emlab.utep.edu/ee5390cem.htm 
+
 import numpy as np
 
 eps_r = 9.
@@ -17,16 +20,12 @@ Omega = np.matrix([[0, 0, (kx*ky / eps_r), (mu_r - kx*kx / eps_r)],
 				   [(kx*ky / mu_r), (eps_r - kx*kx / mu_r), 0, 0],
 				   [(ky*ky/mu_r - eps_r), (-kx*ky/mu_r), 0, 0]])
 				   
-P = 1/eps_r * np.matrix([
-			   [kx*ky, (mu_r*eps_r - kx*kx)],
-			   [(ky*ky - mu_r*eps_r), -kx*ky]
-			   ])
+P = 1/eps_r * np.matrix([[kx*ky, (mu_r*eps_r - kx*kx)],
+			 [(ky*ky - mu_r*eps_r), -kx*ky]])
 				   
 				   
-Q = 1/mu_r * np.matrix([
-						[kx*ky, (mu_r*eps_r - kx*kx)],
-						[(ky*ky - mu_r*eps_r), -kx*ky]
-						])
+Q = 1/mu_r * np.matrix([[kx*ky, (mu_r*eps_r - kx*kx)],
+			[(ky*ky - mu_r*eps_r), -kx*ky]])
 						
 # P.Q is the same as Omega.Omega, but with different dimensions, since P and Q operate on 2,1 vectors.					
 print("P Matrix:\n", P)
