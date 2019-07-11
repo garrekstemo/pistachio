@@ -17,18 +17,34 @@ Omega = np.matrix([[0, 0, (kx*ky / eps_r), (mu_r - kx*kx / eps_r)],
 				   [(kx*ky / mu_r), (eps_r - kx*kx / mu_r), 0, 0],
 				   [(ky*ky/mu_r - eps_r), (-kx*ky/mu_r), 0, 0]])
 				   
+P = 1/eps_r * np.matrix([
+			   [kx*ky, (mu_r*eps_r - kx*kx)],
+			   [(ky*ky - mu_r*eps_r), -kx*ky]
+			   ])
 				   
 				   
-W = np.linalg.eig(Omega)  # eigenvectors
-eigval = np.linalg.eigvals(Omega)  # eigenvalues
+Q = 1/mu_r * np.matrix([
+						[kx*ky, (mu_r*eps_r - kx*kx)],
+						[(ky*ky - mu_r*eps_r), -kx*ky]
+						])
+						
+# P.Q is the same as Omega.Omega, but with different dimensions, since P and Q operate on 2,1 vectors.					
+print("P Matrix:\n", P)
+print("Q Matrix:\n", Q)
+print("P . Q:\n", np.dot(P,Q))
+print("Omega . Omega:\n", np.dot(Omega, Omega))
 
-print(eigval.shape)
-eigval.shape = (4,1)
-print(eigval.shape)
+				   
+W, V = np.linalg.eig(Omega)  # linalg.eig produces both eigenvectors and eigenvalues
+#V = np.linalg.eigvalsh(Omega)  # eigenvalues (hermitian if there's an h)
 
-c = np.dot(W, eigval)
+c = np.dot(W, V)
 
-#print(c, "\n")
+print("Eigenvectors")
+print(W)
+print("Eigenvalues")
+print(V)
 
-print(Omega, "\n")
-print(eigval)
+print("W.V")
+
+print(c)
