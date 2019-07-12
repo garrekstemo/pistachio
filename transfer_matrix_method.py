@@ -180,7 +180,9 @@ def get_wave_data(data_file):
 	f.close()
 
 	return wavelength, y, K
-	
+
+
+
 
 def main():
 	
@@ -220,14 +222,6 @@ def main():
 		
 		#Use dynamical matrix
 		M_i = multilayer_matrix(n_air, n_au, n_other, d, omega)  
-				
-		#Use Fresnel equations
-		r_01 = fresnel(n_air, n_au, k0x, k1x)[0]
-		t_01 = fresnel(n_air, n_au, k0x, k1x)[1]
-		D_01 = transmission_matrix(r_01, t_01)
-		r_10 = fresnel(n_au, n_air, k1x, k0x)[0]
-		t_10 = fresnel(n_au, n_air, k1x, k0x)[1]
-		D_10 = transmission_matrix(r_10, t_10)
 
 		trans = transmittance(M_i, n_air, n_other)[0].real
 		refl = reflectance(M_i)[0]
@@ -236,8 +230,8 @@ def main():
 
 		i+=1
 	
-	TEST = TMM.conservation_tests(M_i, n_air, n_other)
-	Quarter = TMM.testing_quarterwave()
+# 	TEST = TMM.conservation_tests(M_i, n_air, n_other)
+# 	Quarter = TMM.testing_quarterwave()
 	
 	#Make Plots
 	fig, axs = plt.subplots(3, 1, sharex=True)
