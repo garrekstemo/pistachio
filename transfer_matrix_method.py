@@ -82,7 +82,6 @@ class Layer:
 		
 		# s-wave dynamical matrix
 		m = n_ * np.cos(theta)
-
 		Ds = np.matrix([[1, 1], [m, -m]])
 					 
 		# s-wave dynamical matrix
