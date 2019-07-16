@@ -1,0 +1,7 @@
+num_layers: 1
+layers:
+    layer0: 
+        material: au_sio2
+        thickness: 35
+        param_path: "/Users/garrek/projects/pistachio/data/Au_SiO2_n_Ciesielski.csv"
+
