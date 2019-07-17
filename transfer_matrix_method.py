@@ -76,7 +76,6 @@ class Layer:
 				wl = float(line[0])
 				if unit:
 					wl = wl* unit
-					print(wl)
 				n = float(line[1])
 				
 				self.wavelength.append(wl)
