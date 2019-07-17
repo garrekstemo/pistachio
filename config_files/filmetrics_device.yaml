@@ -1,7 +1,7 @@
 num_layers: 1
 num_points: 100
-min_wl: 0.2
-max_wl: 10
+min_wl: 0.21
+max_wl: 2.47
 layers:
     layer0: 
         material: au_sio2

@@ -30,10 +30,6 @@ class Light:
 		self.energy_J = h*c / wavelength  # energy in Joules
 		self.energy_ev = self.energy_J / sc.eV  # energy in electron-volts
 		
-# 	def omega(self):
-# 		omega = 2*np.pi*c / self.wavelength
-# 		return omega
-		
 
 class Layer:
 
@@ -47,9 +43,6 @@ class Layer:
 		self.index = []  # array of refractive indices
 		self.extinct = []  # array of extinction coefficients
 		self.complex = complex
-# 		self.new_wl = []
-# 		self.interp_n = []  # interpolated refractive indices
-# 		self.interp_K = []  # interpolated extinction coefficients
 
 	def complex_index(self, n, K):
 		"""Not properly implemented"""
@@ -57,7 +50,7 @@ class Layer:
 
 
 	def get_data_from_csv(self, path):
-
+		"""Used for refractiveindex.info data"""
 		with open(path, 'r') as params:
 			reader = csv.reader(params)
 			next(reader, None)
@@ -69,6 +62,29 @@ class Layer:
 				if row[2]:
 					K = float(row[2])
 					self.extinct.append(K)
+				
+	def get_data_from_txt(self, path):
+		"""Used for filmetrics.com data"""
+		with open(path, 'r') as params:
+			header = next(params)
+			unit = None
+			if 'nm' in header:
+				unit = 10**-3
+			lines = params.readlines()
+			for line in lines:
+				line = line.strip().split()
+				wl = float(line[0])
+				if unit:
+					wl = wl* unit
+					print(wl)
+				n = float(line[1])
+				
+				self.wavelength.append(wl)
+				self.index.append(n)
+				if line[2]:
+					K = float(line[2])
+					self.extinct.append(K)
+				
 				
 	def set_wavelengths_points(self):
 		new_wl = np.linspace(self.min_wl, self.max_wl, num=self.num_points, endpoint=True)
@@ -148,7 +164,10 @@ def get_layers_from_yaml(device_dict):
 		
 		if "param_path" in layer:
 			params = layer['param_path']
-			layer_class.get_data_from_csv(params)
+			if 'txt' in params:
+				layer_class.get_data_from_txt(params)
+			elif 'csv' in params:
+				layer_class.get_data_from_csv(params)
 		elif "index" in layer:
 			layer_class.index = layer['index']
 			layer_class.extinct = layer['extinction']
