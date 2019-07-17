@@ -8,7 +8,9 @@ import argparse
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy as sp
 import scipy.constants as sc
+import scipy.interpolate
 import TMM_tests as TMM
 from ruamel_yaml import YAML
 
@@ -35,17 +37,25 @@ class Light:
 
 class Layer:
 
-	def __init__(self, material, thickness=0):
+	def __init__(self, material, num_points=0, min_wl=0, max_wl=0, thickness=0):
 		self.material = material
 		self.thickness = thickness
+		self.num_points = num_points
+		self.min_wl = min_wl  # starting wavelength
+		self.max_wl = max_wl  # ending wavelength
 		self.wavelength = []  # array of free space wavelengths
 		self.index = []  # array of refractive indices
 		self.extinct = []  # array of extinction coefficients
 		self.complex = complex
+# 		self.new_wl = []
+# 		self.interp_n = []  # interpolated refractive indices
+# 		self.interp_K = []  # interpolated extinction coefficients
 
 	def complex_index(self, n, K):
+		"""Not properly implemented"""
 		self.complex = n + 1j*K
-		
+
+
 	def get_data_from_csv(self, path):
 
 		with open(path, 'r') as params:
@@ -54,17 +64,26 @@ class Layer:
 			for row in reader:
 				wl = float(row[0])
 				n = float(row[1])
-				K = float(row[2])
 				self.wavelength.append(wl)
 				self.index.append(n)
-				self.extinct.append(K)
-
+				if row[2]:
+					K = float(row[2])
+					self.extinct.append(K)
+				
+	def set_wavelengths_points(self):
+		new_wl = np.linspace(self.min_wl, self.max_wl, num=self.num_points, endpoint=True)
+		return new_wl
+		
+	def interpolate_refraction(self, x0, y0):
+		new_y = sp.interpolate.interp1d(x0, y0)
+		return new_y
+		
+		
 	def wavenumber(self, n, omega, theta=0):
 		"""Outputs the wavenumbers for the dielectric for the given
 		   angular frequency and angle"""
 		k_x = n*omega/sc.c * np.cos(theta)
 		k_z = n*omega/sc.c * np.sin(theta)
-# 		print(k_x)
 		return k_x, k_z
 
 	def propagation_matrix(self, wavenumber):
@@ -105,8 +124,17 @@ def get_dict_from_yaml(yaml_file):
     
 def get_layers_from_yaml(device_dict):
 	"""Takes device dictionary and outputs all layers as a list"""
-	num_key = 'num_layers'
-	num_layers = int(device_dict[num_key])
+	val1 = 'num_layers'
+	val2 = 'num_points'
+	val3 = 'min_wl'
+	val4 = 'max_wl'
+	
+	num_layers = int(device_dict[val1])
+	num_points = int(device_dict[val2])
+	
+	# Minimum and maximum desired wavelengths
+	min_wl = float(device_dict[val3])
+	max_wl = float(device_dict[val4])
 	layers = []
 	
 	for i in range(num_layers):
@@ -115,7 +143,8 @@ def get_layers_from_yaml(device_dict):
 		layer = device_dict['layers'][name]
 		material = layer['material']
 		thickness = float(layer['thickness']) * 10**-9
-		layer_class = Layer(material, thickness)
+
+		layer_class = Layer(material, num_points, min_wl, max_wl, thickness)
 		
 		if "param_path" in layer:
 			params = layer['param_path']
@@ -242,6 +271,7 @@ def get_wave_data(data_file):
 
 def main():
 
+	# This stuff parses command line arguments
 	parser = argparse.ArgumentParser()
 	device_help = "an argument with device.yaml file in pfiles with list of layer csv files"
 	parser.add_argument("device", help=device_help)
@@ -257,15 +287,12 @@ def main():
 
 	
 	# Inputs
-	#NUM_PTS = 100
-	#MIN = 200  #nm
-	#MAX = 20000  #nm
 	n_air = 1.0     # For testing purposes
 	n_other = 1.4   # For testing purposes
 	inc_ang = 0.    # If zero, p-wave and s-wave should yield same transmission
 	um = 10**-6     # micrometers
 	
-	device = get_dict_from_yaml(args.device)   # yaml config file stored as dictionary
+	device = get_dict_from_yaml(args.device)  # yaml config file stored as dictionary
 	layers = get_layers_from_yaml(device)  # a list of layer objects
 
 	air = Layer('air')
@@ -281,15 +308,26 @@ def main():
 	au = layers[0]
 	Au_n = au.index
 	Au_K = au.extinct
+	new_wl = au.set_wavelengths_points()
+	au.index = au.interpolate_refraction(au.wavelength, au.index)(new_wl)
+	au.extinct = au.interpolate_refraction(au.wavelength, au.extinct)(new_wl)
+	au.wavelength = new_wl
+		
+	print("smallest wavelength", au.wavelength[0])
+	print("largest wavelength", au.wavelength[-1])
 
 	# Outputs
 	wavelen = [i for i in layers[0].wavelength]
 	print("num of wavelengths", len(wavelen))
+
+	print('index points', len(layers[0].index))
 	R = []  # calculated reflectance data
 	T = []  # calculated transmittance data
 
-	num_points = len(layers[0].wavelength)   # TODO: This is really sketchy.
-	num_layers = len(layers)
+	num_points = device['num_points']   # TODO: This is really sketchy.
+	num_layers = device['num_layers']
+	print('number of layers:', num_layers)
+	print("number of points", num_points)
 
 	for i in range(num_points):
 		#TODO: Deal with data that have a different number of points 
@@ -326,32 +364,37 @@ def main():
 					
 		trn = transmittance(M_i, air.index, other.index)[0].real
 		ref = reflectance(M_i)[0]
-		
 		T.append(trn)
 		R.append(ref)
+
 		
 	
 	# Make Plots
 	fig, axs = plt.subplots(3, 1, sharex=True)
 	
 	ax = axs[0]
-	ax.plot(wavelen, Au_n, label="n, downloaded data")
-	ax.plot(wavelen, Au_K, label="K, downloaded data")
+# 	ax.plot(wavelen, Au_n, label="n, downloaded data")
+	ax.plot(au.wavelength, au.index, label="n, downloaded")
+	ax.plot(au.wavelength, au.extinct, label="K, downloaded data")
 	ax.set_ylabel('refractive index for Au')
 	ax.legend()
 	
 	ax = axs[1]
-	ax.plot(wavelen, T, label="calculated data")
+	ax.plot(au.wavelength, T, label="calculated data")
 	ax.plot(wavelen_T, Au_T, label="downloaded data")
 	ax.set_ylabel('transmittance')
 # 	ax.set_xlim(0, 5)
 	ax.legend()
 	
 	ax = axs[2]
-	ax.plot(wavelen_T, R, label="calculated data")
+	ax.plot(au.wavelength, R, label="calculated data")
 	ax.set_xlabel('wavelength ($\mu$m)')
 	ax.set_ylabel('reflectance')
 	ax.legend()
+	
+# 	ax = axs[3]
+# 	ax.plot(au_x, au_y(au_x), label="testing interpolation")
+# 	ax.legend()
 	
 	fig.suptitle('Index of refraction, transmission, reflection for {}'.format(au.material))
 	fig.tight_layout()
