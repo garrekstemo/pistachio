@@ -264,9 +264,20 @@ def get_wave_data(data_file):
 				K.append(float(row[2]))
 			except IndexError:
 				pass
-	f.close()
-
 	return wavelength, y, K
+	
+def filmetrics_data(data_file):
+	"""Filmetrics.com T,R,A data are in nanometers"""
+	wavelength = []
+	Y = []
+	with open(data_file) as film:
+		reader = csv.reader(film, delimiter="\t")
+		next(reader, None)  # Skip header
+		for row in reader:
+			wl = float(row[0]) * 10**-3
+			wavelength.append(wl)
+			Y.append(float(row[1]))
+	return wavelength, Y
 	
 
 def main():
@@ -278,13 +289,14 @@ def main():
 	args = parser.parse_args()
 	
 # 	data_Au_n = '/Users/garrek/projects/pistachio/data/Au_SiO2_n_Ciesielski.csv'
-	data_Au_T = '/Users/garrek/projects/pistachio/data/transmittance_au_SiO2_Ciesielski.csv'
+# 	data_Au_T = '/Users/garrek/projects/pistachio/data/transmittance_au_SiO2_Ciesielski.csv'
+	data_Au_T = '/Users/garrek/projects/pistachio/data/Transmittance-calcs.txt.tsv'
 
 	# Get a bunch of downloaded data
 # 	wavelen_n, Au_n, Au_K = get_wave_data(data_Au_n)
-	wavelen_T = get_wave_data(data_Au_T)[0]  # experimental data for Au transmission
-	Au_T = get_wave_data(data_Au_T)[1]
-
+# 	wavelen_T = get_wave_data(data_Au_T)[0]  # experimental data for Au transmission
+# 	Au_T = get_wave_data(data_Au_T)[1]
+	wavelen_T, Au_T = filmetrics_data(data_Au_T)
 	
 	# Inputs
 	n_air = 1.0     # For testing purposes
