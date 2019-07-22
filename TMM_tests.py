@@ -1,7 +1,7 @@
 #! /anaconda3/bin python
 
 import numpy as np
-from transfer_matrix_method import *
+from transfer_matrix import *
 
 
 def testing_quarterwave(n0=1.0, n1=2.32, n2=1.36, ns=2.32):

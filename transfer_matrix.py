@@ -1,18 +1,20 @@
-#! /anaconda3/bin python
+#! /anaconda3/bin/python
 
 # Convention used
 # Psi(x, t) = Psi_0 * exp(i(kx - wt))
 # n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary part.
 
 import argparse
+import sys
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
 import scipy.constants as sc
 import scipy.interpolate
-import TMM_tests as TMM
+from TMM_tests import *
 from ruamel_yaml import YAML
+# import pdb
 
 c = sc.c  # speed of light
 h = sc.h  # planck's constant
@@ -23,7 +25,7 @@ class Light:
 
 	def __init__(self, wavelength):
 		
-		self.wavelength_ = wavelength
+		self.wavelength = wavelength
 		self.omega = 2*np.pi*c / wavelength  # angular frequency
 		self.freq = c / wavelength  # frequency
 		self.k = 2*np.pi / wavelength  # wavenumber
@@ -43,6 +45,15 @@ class Layer:
 		self.index = []  # array of refractive indices
 		self.extinct = []  # array of extinction coefficients
 		self.complex = complex
+		
+	def __repr__(self):
+		a = "{} \n".format(self.material)
+		b = "thickness: {}\n".format(self.thickness)
+		c = "wavelength: {}\n".format(self.wavelength)
+		d = "refractive index: {}\n".format(self.index)
+		e = "extinction coefficient: {}\n".format(self.extinct)
+		return a+b+c+d+e
+				
 
 	def complex_index(self, n, K):
 		"""Not properly implemented"""
@@ -84,15 +95,28 @@ class Layer:
 					K = float(line[2])
 					self.extinct.append(K)
 				
-				
-	def set_wavelengths_points(self):
+	def set_wavelengths(self):
 		new_wl = np.linspace(self.min_wl, self.max_wl, num=self.num_points, endpoint=True)
 		return new_wl
 		
 	def interpolate_refraction(self, x0, y0):
-		new_y = sp.interpolate.interp1d(x0, y0)
+		# WARNING: fill_value='extrapolate' might cause problems!!
+		new_y = sp.interpolate.interp1d(x0, y0, fill_value="extrapolate")
 		return new_y
-		
+
+	def make_new_data_points(self):
+		"""Makes new data points based on user-defined num_points and interpolation."""
+		if not isinstance(self.index, list):
+			self.index = [self.index]*self.num_points	
+			self.extinct = [self.extinct]*self.num_points
+			self.wavelength = self.set_wavelengths()
+		elif isinstance(self.index, list):
+			new_n = self.interpolate_refraction(self.wavelength, self.index)
+			new_K = self.interpolate_refraction(self.wavelength, self.extinct)
+			self.wavelength = self.set_wavelengths()
+			self.index = new_n(self.wavelength)
+			self.extinct = new_K(self.wavelength)
+
 		
 	def wavenumber(self, n, omega, theta=0):
 		"""Outputs the wavenumbers for the dielectric for the given
@@ -121,7 +145,13 @@ class Layer:
 		# s-wave dynamical matrix
 		Dp = np.matrix([[np.cos(theta), np.cos(theta)], [n_, -n_]])
 		
-		return Ds, Dp
+		if args.swave:
+			return Ds
+		elif args.pwave:
+			return Dp
+		else:
+			return "No wave polarization passed in."
+		
 
 
 def get_dict_from_yaml(yaml_file):
@@ -170,25 +200,14 @@ def get_layers_from_yaml(device_dict):
 		elif "index" in layer:
 			layer_class.index = layer['index']
 			layer_class.extinct = layer['extinction']
+			layer_class.wavelength = layer['wavelength']
 		else:
 			print("Error in the yaml file.")
 			
 		layers.append(layer_class)
 
 	return layers
-	
-	
-def check_data_compatibility(layer1, layer2):
-	"""NOT IMPLEMENTED.
-	   Takes a list of layers obtained from get_layers_from_yaml"""
-	
-	row_error = "rows not all the same length in {}".format(l.material)
-	column_error = "columns not all the same length in {} and {}".format(layer1.material,
-																		 layer2.material)
-	
-	assert len(layer1.wavelength) == len(layer2.wavelength), column_error
-	
-	return 0
+
 
 def multilayer_matrix(array):
 	"""Generates the transfer matrix for a 1D array of individual
@@ -224,8 +243,60 @@ def transmittance(TM, n0=0, ns=0, theta_0=0, theta_s=0):
 
     return T, t
 
+def wavelengths_loop(pts, wav_list, substrate, layers, air, inc_ang):
+	
+	T = []
+	R = []
+	M = []
+	
+	um = 10**-6
+	
+	for i in range(pts):
+		
+		M_list = []
+		lmbda = wav_list[i] * um
+		light = Light(lmbda)
+		omega = light.omega
+		
+		# Add substrate to matrix list (reflection region)
+		n = substrate.index[i] + 1j*substrate.extinct[i]
+		D0 = substrate.dynamical_matrix(n, inc_ang)
+		D0inv = inverse(D0)
+		M_list.append(D0inv)
+		
+		for layer in layers:
+			n  = layer.index[i] + 1j*layer.extinct[i]
+			kx = layer.wavenumber(n, omega, inc_ang)[0]
+			
+			D = layer.dynamical_matrix(n, inc_ang)
+			Dinv = inverse(D)
+			P = layer.propagation_matrix(kx)
+			
+			M_list.extend([D, P, Dinv])
+		
+		# Add transmission region medium to matrix list
+		Ds = air.dynamical_matrix(air.index, inc_ang)
+		M_list.append(Ds)
+		M_i = multilayer_matrix(M_list)
+		
+		trn = transmittance(M_i, substrate.index[i], air.index)[0]
+		ref = reflectance(M_i)[0]
+		T.append(trn)
+		R.append(ref)
+		M.append(M_i)
+	
+	return M, T, R
 
-# ===== Functions below not used so much for now ==== #
+def new_em_coeff(M, A0, B0):
+	"""Takes transfer matrix, initial magnitude of EM wave, A0, B0.
+	Outputs transformed magnitudes, As' and Bs'"""
+	
+	E0 = np.array([A0, B0])
+	Es = inverse(M).dot(E0)
+	return Es
+	
+
+# ===== Fresnel equation functions below not used so much for now ==== #
 
 def fresnel(n1, n2, k1x, k2x):
 	"""Inputs:  Angular frequency of incident light
@@ -249,187 +320,150 @@ def transmission_matrix(r_ij, t_ij):
 	   from medium i to medium j."""
 	D_ij = 1/t_ij * np.matrix([[1, r_ij], [r_ij, 1]])    
 	return D_ij
-
-
-def make_wavelengths(num_points, min_l, max_l):
-	"""NOT IMPLEMENTED
-	   Make wavelength data from desired number of points, 
-		starting and ending wavelengths."""
-	wavelen_list = []
-	wavelen = min_l
-	data_width = (max_l - min_l) / num_points
-	i = 0	
-	while i < num_points:
-		wavelen_list.append(wavelen)
-		wavelen += data_width
-		i+=1
-	wavelen_list.sort()
- 
-	return wavelen_list
 	
-def get_wave_data(data_file):
-
-	with open(data_file, 'r') as f:
-		wavelength = []
-		y = []
-		K = []
-		reader = csv.reader(f)
-		next(reader, None)
-		for row in reader:
-			wavelength.append(float(row[0]))
-			y.append(float(row[1]))
-			try:
-				K.append(float(row[2]))
-			except IndexError:
-				pass
-	return wavelength, y, K
-	
-def filmetrics_data(data_file):
-	"""Filmetrics.com T,R,A data are in nanometers"""
+def reference_data(data_file):
+	"""Gets reference data downloaded from
+	websites. Filmetrics.com T,R,A data are in nanometers"""
 	wavelength = []
 	Y = []
-	with open(data_file) as film:
-		reader = csv.reader(film, delimiter="\t")
+	unit = 1  # sets order of magnitude (nm or um)
+	with open(data_file, 'r') as ref:
+	
+		reader = None
+		if 'txt.tsv' in str(ref):
+			print('Filmetrics data. Units in nm')
+			unit = 10**-3
+			reader = csv.reader(ref, delimiter="\t")
+		else:
+			print("Refractiveindex.info data. Units in um")
+			reader = csv.reader(ref)
 		next(reader, None)  # Skip header
 		for row in reader:
-			wl = float(row[0]) * 10**-3
+			wl = float(row[0]) * unit  # MAKE SURE UNITS ARE CORRECT
 			wavelength.append(wl)
 			Y.append(float(row[1]))
 	return wavelength, Y
-	
+
 
 def main():
 
-	# This stuff parses command line arguments
-	parser = argparse.ArgumentParser()
-	device_help = "an argument with device.yaml file in pfiles with list of layer csv files"
-	parser.add_argument("device", help=device_help)
-	args = parser.parse_args()
-	
-# 	data_Au_n = '/Users/garrek/projects/pistachio/data/Au_SiO2_n_Ciesielski.csv'
-# 	data_Au_T = '/Users/garrek/projects/pistachio/data/transmittance_au_SiO2_Ciesielski.csv'
-	data_Au_T = '/Users/garrek/projects/pistachio/data/Transmittance-calcs.txt.tsv'
+	print("\nStart simulation\n")
 
-	# Get a bunch of downloaded data
-# 	wavelen_n, Au_n, Au_K = get_wave_data(data_Au_n)
-# 	wavelen_T = get_wave_data(data_Au_T)[0]  # experimental data for Au transmission
-# 	Au_T = get_wave_data(data_Au_T)[1]
-	wavelen_T, Au_T = filmetrics_data(data_Au_T)
-	
+	# Store a bunch of downloaded data
+	if args.trns:
+		wl_T_data, T_data = reference_data(args.trns)
+	if args.refl:
+		wl_R_data, R_data = reference_data(args.refl)
+	else:
+		print("Using no reference data.\n")
+		
 	# Inputs
-	n_air = 1.0     # For testing purposes
-	n_other = 1.4   # For testing purposes
-	inc_ang = 0.    # If zero, p-wave and s-wave should yield same transmission
 	um = 10**-6     # micrometers
 	
 	device = get_dict_from_yaml(args.device)  # yaml config file stored as dictionary
 	layers = get_layers_from_yaml(device)  # a list of layer objects
+	
+	# If zero, p-wave and s-wave should yield same transmission
+	em_wave = device['wave']
+	inc_ang = em_wave['theta_in'] #np.pi/3
 
+	# TODO: put this in yaml config file
 	air = Layer('air')
 	air.index = 1.0
 	air.extinct = 0.
 	air.complex = 1.0
 	
-	other = Layer('other')
-	other.index = 1.4
-	other.extinct = 0.
-	other.complex = 1.4
-	
-	au = layers[0]
-	Au_n = au.index
-	Au_K = au.extinct
-	new_wl = au.set_wavelengths_points()
-	au.index = au.interpolate_refraction(au.wavelength, au.index)(new_wl)
-	au.extinct = au.interpolate_refraction(au.wavelength, au.extinct)(new_wl)
-	au.wavelength = new_wl
-		
-	print("smallest wavelength", au.wavelength[0])
-	print("largest wavelength", au.wavelength[-1])
-
-	# Outputs
-	wavelen = [i for i in layers[0].wavelength]
-	print("num of wavelengths", len(wavelen))
-
-	print('index points', len(layers[0].index))
-	R = []  # calculated reflectance data
-	T = []  # calculated transmittance data
-
-	num_points = device['num_points']   # TODO: This is really sketchy.
+	# Get bounding values and populate each layer with data
+	num_points = device['num_points']
 	num_layers = device['num_layers']
+	MIN_WL = device['min_wl']
+	MAX_WL = device['max_wl']
+	# Now we know how many points there are and we can generate some wavelengths
+	# based on min and max wavelengths in our config file.
+
 	print('number of layers:', num_layers)
 	print("number of points", num_points)
+	print("Starting wavelength (um)", MIN_WL)
+	print("Ending wavelength (um)", MAX_WL)
+	
+	sub_name = device['substrate']['material']
+	substrate = Layer(sub_name, num_points, MIN_WL, MAX_WL)
 
-	for i in range(num_points):
-		#TODO: Deal with data that have a different number of points 
-		M_list = []  # list of matrices to be multiplied
-		lmbda = wavelen[i] * um
-		light = Light(lmbda)  # Make an instance of Light class
-		omega = light.omega
+	if 'param_path' in device['substrate']:
+		sub_params = device['substrate']['param_path']
+		substrate.get_data_from_csv(device['substrate']['param_path'])
+		substrate.make_new_data_points()
+	else:
+		substrate.index = device['substrate']['index']
+		substrate.extinct = device['substrate']['extinction']
+		substrate.make_new_data_points()
+	
+	for layer in layers:
+		# interpolating from downloaded index data, making new data points
+		print("\n", str(layer.material) + ", d=" + str(int(layer.thickness*10**9)) + "nm")
+		layer.make_new_data_points()
 
-		# Add air to matrix list (reflection region)		
-		air.wavelength = lmbda
-		D0 = air.dynamical_matrix(air.index)[0]
-		D0inv = inverse(D0)
-		M_list.append(D0inv)
-
-		for layer in layers:
-			#Cycle through layer object instances stored in the 'layers' list above.
-			
-			n = layer.index[i] + 1j*layer.extinct[i]
-			kx = layer.wavenumber(n, omega)[0]
-			
-			D = layer.dynamical_matrix(n)[0]
-			Dinv = inverse(D)
-			P = layer.propagation_matrix(kx)
-					
-			M_list.extend([D, P, Dinv])
-
-		# Add other to matrix list (transmission region)
-		other.wavelength = lmbda
-		Ds = other.dynamical_matrix(other.index)[0]
-		M_list.append(Ds)
-
-# 		M_i = multilayer_matrix(M_list)
-		M_i = multilayer_matrix([D0inv, D, P, Dinv, Ds])
-					
-		trn = transmittance(M_i, air.index, other.index)[0].real
-		ref = reflectance(M_i)[0]
-		T.append(trn)
-		R.append(ref)
-
-		
+	wavelen = layers[0].wavelength  # still in units of um
+	
+	# Outputs
+	
+	M, T, R = wavelengths_loop(num_points, wavelen, substrate, layers, air, inc_ang)
+	
+	for m in M:
+		new_em_coeff(m, em_wave['A0'], em_wave['B0'])
 	
 	# Make Plots
-	fig, axs = plt.subplots(3, 1, sharex=True)
+	print("_"*50)
+	print("Generating plots...")
+	fig, axs = plt.subplots(2, 1, sharex=True)
 	
 	ax = axs[0]
-# 	ax.plot(wavelen, Au_n, label="n, downloaded data")
-	ax.plot(au.wavelength, au.index, label="n, downloaded")
-	ax.plot(au.wavelength, au.extinct, label="K, downloaded data")
-	ax.set_ylabel('refractive index for Au')
+	if args.trns:
+		ax.plot(wl_T_data, T_data, color='0.3', label="downloaded data")
+	ax.plot(wavelen, T, 'r--', label="calculated data")
+	ax.set_ylabel('transmittance')
+# 	ax.set_xlim(4, 15.)
 	ax.legend()
 	
 	ax = axs[1]
-	ax.plot(au.wavelength, T, label="calculated data")
-	ax.plot(wavelen_T, Au_T, label="downloaded data")
-	ax.set_ylabel('transmittance')
-# 	ax.set_xlim(0, 5)
-	ax.legend()
-	
-	ax = axs[2]
-	ax.plot(au.wavelength, R, label="calculated data")
+	ax.plot(wavelen, R, 'r-', label="calculated data")
+	if args.refl:
+		ax.plot(wl_R_data, R_data, '--', label="downloaded data")
 	ax.set_xlabel('wavelength ($\mu$m)')
 	ax.set_ylabel('reflectance')
 	ax.legend()
 	
-# 	ax = axs[3]
-# 	ax.plot(au_x, au_y(au_x), label="testing interpolation")
-# 	ax.legend()
-	
-	fig.suptitle('Index of refraction, transmission, reflection for {}'.format(au.material))
-	fig.tight_layout()
+# 	d = str(int(au.thickness*10**9)) + ' nm'
+	title = "Index of refraction (n, K), transmission, reflection for 1000nm SiO2 and 35nm Au" #for {} {}.format(d, au.material)
+# 	FPI_title = "Transmission, reflection for SiO2 (100nm), Au (35nm), Air (5um), Au, SiO2"
+	plt.suptitle(title)
+	plt.tight_layout()
+	plt.subplots_adjust(top=0.9)
 	plt.show()
 	
 
 if __name__ == '__main__':
+	parser = argparse.ArgumentParser()
+	device_help = "path for a yaml file from config_files describing a device"
+	reflectance_help = "path for reflectance data downloaded from filmetrics"
+	transmittance_help = "path for transmittance data downloaded from filmetrics"
+	pwave_help = "boolean, calculate for p-wave"
+	swave_help = "boolean, calculate for s-wave"
+	
+	parser.add_argument('--debug',
+						action='store_true',
+						help="doesn't do anything right now")
+	parser.add_argument("device",
+						help=device_help)
+	parser.add_argument('-p', '--pwave', help=pwave_help, action='store_true')
+	parser.add_argument('-s', '--swave', help=swave_help, action='store_true')
+	parser.add_argument('-T', '--trns',
+						help=transmittance_help)
+	parser.add_argument('-R', '--refl',
+						help=reflectance_help)
+	debug_mode = parser.parse_args().debug
+	if debug_mode:
+		print("Debug mode\n")
+	args = parser.parse_args()
+	
 	main()

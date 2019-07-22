@@ -1,0 +1,10 @@
+num_layers: 1
+num_points: 100
+min_wl: 0.21
+max_wl: 2.
+layers:
+    layer0: 
+        material: Al
+        thickness: 15
+        param_path: "/Users/garrek/projects/pistachio/data/Al_index.txt"
+

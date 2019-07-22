@@ -1,0 +1,27 @@
+num_layers: 5
+num_points: 1000
+min_wl: 0.21  # um
+max_wl: 1.1   # um
+layers:
+    layer0: 
+        material: SiO2
+        thickness: 100  # nm
+        param_path: "/Users/garrek/projects/pistachio/data/SiO2_index.txt"
+    layer1: 
+        material: Au
+        thickness: 35  # nm
+        param_path: "/Users/garrek/projects/pistachio/data/Au_index.txt"
+    layer2:
+        material: Air
+        thickness: 5000
+        wavelength: [.3]
+        index: 1.0
+        extinction: 0.0
+    layer3: 
+        material: Au
+        thickness: 35  # nm
+        param_path: "/Users/garrek/projects/pistachio/data/Au_index.txt"
+    layer4: 
+        material: SiO2
+        thickness: 100  # nm
+        param_path: "/Users/garrek/projects/pistachio/data/SiO2_index.txt"

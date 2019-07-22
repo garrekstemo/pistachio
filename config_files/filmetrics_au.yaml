@@ -1,0 +1,16 @@
+num_layers: 1
+num_points: 100
+min_wl: 0.21
+max_wl: 2.47
+substrate:
+    material: Air
+    thickness: 0.
+    wavelength: [0.3]
+    index: 1.0
+    extinction: 0.0
+layers:
+    layer0: 
+        material: Au
+        thickness: 35
+        param_path: "/Users/garrek/projects/pistachio/data/filmetrics/Au_index.txt"
+

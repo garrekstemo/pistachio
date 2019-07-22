@@ -1,0 +1,13 @@
+num_layers: 1
+num_points: 100
+min_wl: 0.19
+max_wl: 20.90
+substrate:
+    material: SiO2
+    param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/SiO2_n_Kischkat.csv"
+layers:
+    layer0: 
+        material: Ag
+        thickness: 20  
+        param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/Ag_SiO2_n_Ciesielski.csv"
+
