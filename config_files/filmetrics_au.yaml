@@ -2,6 +2,10 @@ num_layers: 1
 num_points: 100
 min_wl: 0.21
 max_wl: 2.47
+wave:     # properties of initial em wave 
+    theta_in: 0. # incident angle of em wave
+    A0: 0   # magnitude of left-progagating wave
+    B0: 1   # magnitude of right-propagating wave
 substrate:
     material: Air
     thickness: 0.

@@ -12,9 +12,8 @@ import numpy as np
 import scipy as sp
 import scipy.constants as sc
 import scipy.interpolate
-from TMM_tests import *
 from ruamel_yaml import YAML
-# import pdb
+import pdb
 
 c = sc.c  # speed of light
 h = sc.h  # planck's constant
@@ -130,7 +129,7 @@ class Layer:
 		   Output: propagation matrix (phase accumulation for plane wave 
 					propagating through homogeneous medium)."""	
 		phi = wavenumber*self.thickness
-		P_i = np.matrix([[np.exp(-1j*phi), 0], [0, np.exp(1j*phi)]])
+		P_i = np.array([[np.exp(-1j*phi), 0], [0, np.exp(1j*phi)]])
 	
 		return P_i
 
@@ -140,17 +139,18 @@ class Layer:
 		
 		# s-wave dynamical matrix
 		m = n_ * np.cos(theta)
-		Ds = np.matrix([[1, 1], [m, -m]])
+		Ds = np.array([[1, 1], [m, -m]])
 					 
 		# s-wave dynamical matrix
-		Dp = np.matrix([[np.cos(theta), np.cos(theta)], [n_, -n_]])
+		Dp = np.array([[np.cos(theta), np.cos(theta)], [n_, -n_]])
 		
 		if args.swave:
 			return Ds
 		elif args.pwave:
 			return Dp
 		else:
-			return "No wave polarization passed in."
+			print("No wave polarization passed in. See --help for more info. Exiting....")
+			sys.exit()
 		
 
 
@@ -215,10 +215,6 @@ def multilayer_matrix(array):
 	TM = np.linalg.multi_dot(array)
 	return TM
 
-def inverse(matrix):
-	Minv = np.linalg.inv(matrix)
-	return Minv
-
 def reflectance(M_):
     """Input: multilayer matrix, M.
        Output: reflectance calculation."""
@@ -229,71 +225,75 @@ def reflectance(M_):
     r_sq = r_sq.real
     R = r_sq
    
-    return R, r
+    return R
    
-def transmittance(TM, n0=0, ns=0, theta_0=0, theta_s=0):
+def transmittance(TM):
     """Inputs: Multilayer matrix of dynamical matrices and propagation matrix."""
     M11 = TM.item((0, 0))
     t = 1/M11
     t_sq = t * np.conj(t)
     t_sq = t_sq.real
 
-#     T = ((ns*np.cos(theta_s)) / (n0*np.cos(theta_0))) * t_sq
     T = np.linalg.det(TM) * t_sq
 
-    return T, t
+    return T
 
-def wavelengths_loop(pts, wav_list, substrate, layers, air, inc_ang):
-	
-	T = []
-	R = []
-	M = []
-	
+def build_matrix(wavelen, theta, bound1, bound2, layers, idx):
+
 	um = 10**-6
+	matrices = []
+	lmbda = wavelen[idx] * um
+	light = Light(lmbda)
+	omega = light.omega
 	
-	for i in range(pts):
-		
-		M_list = []
-		lmbda = wav_list[i] * um
-		light = Light(lmbda)
-		omega = light.omega
-		
-		# Add substrate to matrix list (reflection region)
-		n = substrate.index[i] + 1j*substrate.extinct[i]
-		D0 = substrate.dynamical_matrix(n, inc_ang)
-		D0inv = inverse(D0)
-		M_list.append(D0inv)
-		
-		for layer in layers:
-			n  = layer.index[i] + 1j*layer.extinct[i]
-			kx = layer.wavenumber(n, omega, inc_ang)[0]
-			
-			D = layer.dynamical_matrix(n, inc_ang)
-			Dinv = inverse(D)
-			P = layer.propagation_matrix(kx)
-			
-			M_list.extend([D, P, Dinv])
-		
-		# Add transmission region medium to matrix list
-		Ds = air.dynamical_matrix(air.index, inc_ang)
-		M_list.append(Ds)
-		M_i = multilayer_matrix(M_list)
-		
-		trn = transmittance(M_i, substrate.index[i], air.index)[0]
-		ref = reflectance(M_i)[0]
-		T.append(trn)
-		R.append(ref)
-		M.append(M_i)
-	
-	return M, T, R
+	n0 = bound1.index[idx] + 1j*bound1.extinct[idx]
+	D0 = bound1.dynamical_matrix(n0, theta)
+	D0inv = np.linalg.inv(D0)
+	matrices.append(D0inv)
 
-def new_em_coeff(M, A0, B0):
-	"""Takes transfer matrix, initial magnitude of EM wave, A0, B0.
-	Outputs transformed magnitudes, As' and Bs'"""
+	for layer in layers:
+		n  = layer.index[idx] + 1j*layer.extinct[idx]
+		kx = layer.wavenumber(n, omega, theta)[0]
+		
+		D = layer.dynamical_matrix(n, theta)
+		Dinv = np.linalg.inv(D)
+		P = layer.propagation_matrix(kx)
+
+		matrices.extend([D, P, Dinv])
+		
+	# Add transmission region medium to matrix list
+	ns = bound2.index + 1j*bound2.extinct
+	Ds = bound2.dynamical_matrix(ns, theta)
+	matrices.append(Ds)
 	
+	return matrices
+
+def E_field_coeffs(M, A0, B0, layer_num):
+	"""Takes transfer matrix, final magnitude of EM wave, As, Bs.
+	Outputs transformed magnitudes, An and Bn"""
+	print(M)
+	El = []
 	E0 = np.array([A0, B0])
-	Es = inverse(M).dot(E0)
-	return Es
+	matrix = []
+	
+	if layer_num == 0:
+		El = np.array([A0, B0])
+		return El
+	elif layer_num == 1:
+		matrix = M[:1]
+		matrix = np.linalg.inv(matrix)
+	else:
+		#Need first, last matrix, and multiples of three in between
+		last_element = (layer_num-1)*3 + 2 
+
+		matrix = M[:last_element]
+		TM = np.linalg.multi_dot(matrix)	
+		TMinv = np.linalg.inv(TM)
+		matrix = TMinv
+
+	El = np.matmul(matrix, E0)
+	
+	return El
 	
 
 # ===== Fresnel equation functions below not used so much for now ==== #
@@ -318,7 +318,7 @@ def transmission_matrix(r_ij, t_ij):
 	"""Inputs: Fresnel transmission, reflection coefficients from medium i to medium j.
 	   Output: Corresponding transmission matrix linking amplitudes
 	   from medium i to medium j."""
-	D_ij = 1/t_ij * np.matrix([[1, r_ij], [r_ij, 1]])    
+	D_ij = 1/t_ij * np.array([[1, r_ij], [r_ij, 1]])    
 	return D_ij
 	
 def reference_data(data_file):
@@ -356,13 +356,13 @@ def main():
 		wl_R_data, R_data = reference_data(args.refl)
 	else:
 		print("Using no reference data.\n")
-		
+
 	# Inputs
 	um = 10**-6     # micrometers
-	
+
 	device = get_dict_from_yaml(args.device)  # yaml config file stored as dictionary
 	layers = get_layers_from_yaml(device)  # a list of layer objects
-	
+
 	# If zero, p-wave and s-wave should yield same transmission
 	em_wave = device['wave']
 	inc_ang = em_wave['theta_in'] #np.pi/3
@@ -403,14 +403,22 @@ def main():
 		print("\n", str(layer.material) + ", d=" + str(int(layer.thickness*10**9)) + "nm")
 		layer.make_new_data_points()
 
-	wavelen = layers[0].wavelength  # still in units of um
+	wavelens = layers[0].wavelength  # still in units of um
 	
 	# Outputs
+	T = []
+	R = []
+	for w in range(len(wavelens)):
+		M = build_matrix(wavelens, inc_ang, substrate, air, layers, w)
+		TM = np.linalg.multi_dot(M)
+		trns = transmittance(TM).real
+		refl = reflectance(TM).real
+		T.append(trns)
+		R.append(refl)
 	
-	M, T, R = wavelengths_loop(num_points, wavelen, substrate, layers, air, inc_ang)
-	
-	for m in M:
-		new_em_coeff(m, em_wave['A0'], em_wave['B0'])
+	for i in range(num_layers):
+		EField = E_field_coeffs(M, em_wave['A0'], em_wave['B0'], i)
+		print(EField)
 	
 	# Make Plots
 	print("_"*50)
@@ -419,27 +427,26 @@ def main():
 	
 	ax = axs[0]
 	if args.trns:
-		ax.plot(wl_T_data, T_data, color='0.3', label="downloaded data")
-	ax.plot(wavelen, T, 'r--', label="calculated data")
+		ax.plot(wl_T_data, T_data, linestyle="dashed", color='0.3', label="downloaded data")
+	ax.plot(wavelens, T, 'b-', label="calculated data")
 	ax.set_ylabel('transmittance')
 # 	ax.set_xlim(4, 15.)
 	ax.legend()
 	
 	ax = axs[1]
-	ax.plot(wavelen, R, 'r-', label="calculated data")
+	ax.plot(wavelens, R, 'b-', label="calculated data")
 	if args.refl:
-		ax.plot(wl_R_data, R_data, '--', label="downloaded data")
+		ax.plot(wl_R_data, R_data, 'r--', label="downloaded data")
 	ax.set_xlabel('wavelength ($\mu$m)')
 	ax.set_ylabel('reflectance')
 	ax.legend()
 	
 # 	d = str(int(au.thickness*10**9)) + ' nm'
-	title = "Index of refraction (n, K), transmission, reflection for 1000nm SiO2 and 35nm Au" #for {} {}.format(d, au.material)
-# 	FPI_title = "Transmission, reflection for SiO2 (100nm), Au (35nm), Air (5um), Au, SiO2"
+	title = "Index of refraction (n, K), transmission, reflection"
 	plt.suptitle(title)
 	plt.tight_layout()
 	plt.subplots_adjust(top=0.9)
-	plt.show()
+# 	plt.show()
 	
 
 if __name__ == '__main__':

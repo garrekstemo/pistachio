@@ -4,7 +4,7 @@ min_wl: 0.21  # um
 max_wl: 19.1   # um
 wave:     # properties of initial em wave 
     theta_in: 0. # incident angle of em wave
-    A0: 1   # magnitude of left-progagating wave
+    A0: 0   # magnitude of left-progagating wave
     B0: 1   # magnitude of right-propagating wave
 substrate:
     material: Air
@@ -18,9 +18,11 @@ layers:
         thickness: 20  # nm
         param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/au_n_0.191-20.9um_Ciesielski.csv"
     layer1:
-        material: Ethanol
+        material: Air
         thickness: 10
-        param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/ethanol_n_0.185-61um_Sani.csv"
+        wavelength: [0.3]
+        index: 1.0
+        extinction: 0.0
     layer2: 
         material: Au
         thickness: 20  # nm
