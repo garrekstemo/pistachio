@@ -25,12 +25,18 @@ class Light:
 	def __init__(self, wavelength):
 		
 		self.wavelength = wavelength
-		self.omega = 2*np.pi*c / wavelength  # angular frequency
+# 		self.omega = 2*np.pi*c / wavelength  # angular frequency
 		self.freq = c / wavelength  # frequency
 		self.k = 2*np.pi / wavelength  # wavenumber
 		self.energy_J = h*c / wavelength  # energy in Joules
 		self.energy_ev = self.energy_J / sc.eV  # energy in electron-volts
+		self.amplitude = []
+		self.trans_amplitude = np.array([1, 0])
+		self.matrices = []
 		
+	def omega(self):
+		return 2*np.pi*c / self.wavelength
+
 
 class Layer:
 
@@ -43,6 +49,7 @@ class Layer:
 		self.wavelength = []  # array of free space wavelengths
 		self.index = []  # array of refractive indices
 		self.extinct = []  # array of extinction coefficients
+		self.waves = {}
 		self.complex = complex
 		
 	def __repr__(self):
@@ -109,17 +116,23 @@ class Layer:
 			self.index = [self.index]*self.num_points	
 			self.extinct = [self.extinct]*self.num_points
 			self.wavelength = self.set_wavelengths()
+			for idx, lmbda in enumerate(self.wavelength):
+				self.waves[lmbda] = self.index[idx] + self.extinct[idx]
+				
 		elif isinstance(self.index, list):
 			new_n = self.interpolate_refraction(self.wavelength, self.index)
 			new_K = self.interpolate_refraction(self.wavelength, self.extinct)
 			self.wavelength = self.set_wavelengths()
 			self.index = new_n(self.wavelength)
 			self.extinct = new_K(self.wavelength)
+			for idx, lmbda in enumerate(self.wavelength):
+				self.waves[lmbda] = self.index[idx] + 1j*self.extinct[idx]
 
 		
 	def wavenumber(self, n, omega, theta=0):
 		"""Outputs the wavenumbers for the dielectric for the given
 		   angular frequency and angle"""
+
 		k_x = n*omega/sc.c * np.cos(theta)
 		k_z = n*omega/sc.c * np.sin(theta)
 		return k_x, k_z
@@ -238,65 +251,101 @@ def transmittance(TM):
 
     return T
 
-def build_matrix(wavelen, theta, bound1, bound2, layers, idx):
+def build_matrix_list(wave_obj, theta, bound1, bound2, layers):
+	"""TODO: Make this part of the Light object?
+	Makes a wavelength object and bounds. Outputs a list of matrices that will
+	make the transfer matrix for that wavelength of light propagating 
+	through the device."""
 
-	um = 10**-6
+	wave_key = wave_obj.wavelength   # Keep this key stored to retrive index data
+	wave_obj.wavelength = wave_obj.wavelength * 10**-6  # used for computation
+	omega = wave_obj.omega()
+# 	print("build matrix, wave key", wave_key)
+# 	print("build matrix, wave obj wl", wave_obj.wavelength)
 	matrices = []
-	lmbda = wavelen[idx] * um
-	light = Light(lmbda)
-	omega = light.omega
-	
-	n0 = bound1.index[idx] + 1j*bound1.extinct[idx]
+# 	lmbda = wave_obj[idx] * um
+# 	light = Light(lmbda)
+	n0 = bound1.index + 1j*bound1.extinct
 	D0 = bound1.dynamical_matrix(n0, theta)
 	D0inv = np.linalg.inv(D0)
 	matrices.append(D0inv)
 
 	for layer in layers:
-		n  = layer.index[idx] + 1j*layer.extinct[idx]
+# 		n  = layer.index[idx] + 1j*layer.extinct[idx]
+		n = layer.waves[wave_key]
 		kx = layer.wavenumber(n, omega, theta)[0]
-		
+
 		D = layer.dynamical_matrix(n, theta)
 		Dinv = np.linalg.inv(D)
 		P = layer.propagation_matrix(kx)
-
 		matrices.extend([D, P, Dinv])
-		
+
 	# Add transmission region medium to matrix list
 	ns = bound2.index + 1j*bound2.extinct
 	Ds = bound2.dynamical_matrix(ns, theta)
 	matrices.append(Ds)
-	
+
 	return matrices
 
-def E_field_coeffs(M, A0, B0, layer_num):
-	"""Takes transfer matrix, final magnitude of EM wave, As, Bs.
-	Outputs transformed magnitudes, An and Bn"""
-	print(M)
+
+def field_amp(matrix_arr, As_, Bs_):
+	"""TODO: Make this part of the Light object?
+	Takes transfer matrix, final magnitude of EM wave, As, Bs.
+	Outputs E-field amplitude for given matrix. This approach starts calculations from
+	the incident wave."""
+	
+	Elrev = []  #reversed order field amplitudes
+	Es = np.array([As_, Bs_])
+	Elrev.append(Es)
+	i = 1
+	W = 3
+	L = len(matrix_arr)
+
+	while W*i < L:
+		slice = matrix_arr[L-W*i:]
+		M = np.linalg.multi_dot(slice)
+		amp = np.dot(M, Es)
+		Elrev.append(amp)
+		i+=1
+
+	first_layer = 2
+	M = np.linalg.multi_dot(matrix_arr[:first_layer])
+	amp = np.dot(M, Es)
+	Elrev.append(amp)
+
+	# Put amplitudes in order from first to last layer.
 	El = []
-	E0 = np.array([A0, B0])
-	matrix = []
-	
-	if layer_num == 0:
-		El = np.array([A0, B0])
-		return El
-	elif layer_num == 1:
-		matrix = M[:1]
-		matrix = np.linalg.inv(matrix)
-	else:
-		#Need first, last matrix, and multiples of three in between
-		last_element = (layer_num-1)*3 + 2 
-
-		matrix = M[:last_element]
-		TM = np.linalg.multi_dot(matrix)	
-		TMinv = np.linalg.inv(TM)
-		matrix = TMinv
-
-	El = np.matmul(matrix, E0)
-	
+	for E in reversed(Elrev):  
+		El.append(E)
 	return El
 	
 
-# ===== Fresnel equation functions below not used so much for now ==== #
+def set_bound(device_, bound_name):
+	"""Takes device dictionary and name of bounding material as a string"""
+	
+	bound_msg = "Boundary material name is not a string."
+	assert isinstance(bound_name, str), bound_msg
+	
+	num_points = device_['num_points']
+	MIN_WL = device_['min_wl']
+	MAX_WL = device_['max_wl']
+	name = device_[bound_name]['material']
+	bound = Layer(name, num_points, MIN_WL, MAX_WL)
+	param_path = 'param_path'
+	
+	if param_path in device_[bound_name]:
+		params = device_[bound_name][param_path]
+		bound.get_data_from_csv(params)
+		bound.make_new_data_points()
+	else:
+		bound.index = device_[bound_name]['index']
+		bound.extinct = device_[bound_name]['extinction']
+# 		bound.make_new_data_points()
+	
+	return bound
+		
+
+# ===== Fresnel equation functions below not used so much for now ===== #
 
 def fresnel(n1, n2, k1x, k2x):
 	"""Inputs:  Angular frequency of incident light
@@ -318,9 +367,10 @@ def transmission_matrix(r_ij, t_ij):
 	"""Inputs: Fresnel transmission, reflection coefficients from medium i to medium j.
 	   Output: Corresponding transmission matrix linking amplitudes
 	   from medium i to medium j."""
-	D_ij = 1/t_ij * np.array([[1, r_ij], [r_ij, 1]])    
+	D_ij = 1/t_ij * np.array([[1, r_ij], [r_ij, 1]])
 	return D_ij
-	
+# ========= ========= ========= ========= ========== ========= ======== #
+
 def reference_data(data_file):
 	"""Gets reference data downloaded from
 	websites. Filmetrics.com T,R,A data are in nanometers"""
@@ -346,91 +396,68 @@ def reference_data(data_file):
 
 
 def main():
-
-	print("\nStart simulation\n")
-
-	# Store a bunch of downloaded data
-	if args.trns:
-		wl_T_data, T_data = reference_data(args.trns)
-	if args.refl:
-		wl_R_data, R_data = reference_data(args.refl)
-	else:
-		print("Using no reference data.\n")
-
 	# Inputs
-	um = 10**-6     # micrometers
-
 	device = get_dict_from_yaml(args.device)  # yaml config file stored as dictionary
 	layers = get_layers_from_yaml(device)  # a list of layer objects
 
 	# If zero, p-wave and s-wave should yield same transmission
 	em_wave = device['wave']
-	inc_ang = em_wave['theta_in'] #np.pi/3
-
-	# TODO: put this in yaml config file
-	air = Layer('air')
-	air.index = 1.0
-	air.extinct = 0.
-	air.complex = 1.0
+	inc_ang = em_wave['theta_in']
 	
-	# Get bounding values and populate each layer with data
-	num_points = device['num_points']
-	num_layers = device['num_layers']
-	MIN_WL = device['min_wl']
-	MAX_WL = device['max_wl']
-	# Now we know how many points there are and we can generate some wavelengths
-	# based on min and max wavelengths in our config file.
-
-	print('number of layers:', num_layers)
-	print("number of points", num_points)
-	print("Starting wavelength (um)", MIN_WL)
-	print("Ending wavelength (um)", MAX_WL)
-	
-	sub_name = device['substrate']['material']
-	substrate = Layer(sub_name, num_points, MIN_WL, MAX_WL)
-
-	if 'param_path' in device['substrate']:
-		sub_params = device['substrate']['param_path']
-		substrate.get_data_from_csv(device['substrate']['param_path'])
-		substrate.make_new_data_points()
-	else:
-		substrate.index = device['substrate']['index']
-		substrate.extinct = device['substrate']['extinction']
-		substrate.make_new_data_points()
+	# TODO: make code work for bounds with frequency dependent refractive indices
+	bound1 = set_bound(device, 'bound1')
+	bound2 = set_bound(device, 'bound2') 
 	
 	for layer in layers:
 		# interpolating from downloaded index data, making new data points
 		print("\n", str(layer.material) + ", d=" + str(int(layer.thickness*10**9)) + "nm")
 		layer.make_new_data_points()
 
+	# We should separate this from the Layer class. 
 	wavelens = layers[0].wavelength  # still in units of um
+	all_of_the_lights = []
 	
 	# Outputs
 	T = []
 	R = []
-	for w in range(len(wavelens)):
-		M = build_matrix(wavelens, inc_ang, substrate, air, layers, w)
+	E_amps = []
+	intensity = []
+	
+	for lm in wavelens:
+		lmbda = Light(lm)
+		all_of_the_lights.append(lmbda)
+		M = build_matrix_list(lmbda, inc_ang, bound1, bound2, layers)
+		lmbda.matrices = M
 		TM = np.linalg.multi_dot(M)
+		print(TM)
 		trns = transmittance(TM).real
 		refl = reflectance(TM).real
 		T.append(trns)
 		R.append(refl)
+
+	for lm in all_of_the_lights:
+		matrices = lm.matrices
+		As, Bs = lm.trans_amplitude
+		E_amps.append(field_amp(matrices, As, Bs))
+
+	for amp in E_amps:
+		E = amp[0][1]
+		I = E*np.conj(E)
+		intensity.append(I.real)
+		
+
+	# ===== Make Plots ===== #
 	
-	for i in range(num_layers):
-		EField = E_field_coeffs(M, em_wave['A0'], em_wave['B0'], i)
-		print(EField)
-	
-	# Make Plots
 	print("_"*50)
 	print("Generating plots...")
-	fig, axs = plt.subplots(2, 1, sharex=True)
+	fig, axs = plt.subplots(3, 1, sharex=True)
 	
 	ax = axs[0]
+	ax.plot(wavelens, T, 'b-', label="calculated data")
 	if args.trns:
 		ax.plot(wl_T_data, T_data, linestyle="dashed", color='0.3', label="downloaded data")
-	ax.plot(wavelens, T, 'b-', label="calculated data")
 	ax.set_ylabel('transmittance')
-# 	ax.set_xlim(4, 15.)
+	ax.set_xlim(0, 10)
 	ax.legend()
 	
 	ax = axs[1]
@@ -441,12 +468,15 @@ def main():
 	ax.set_ylabel('reflectance')
 	ax.legend()
 	
+	ax = axs[2]
+	ax.plot(wavelens, intensity)
+	
 # 	d = str(int(au.thickness*10**9)) + ' nm'
 	title = "Index of refraction (n, K), transmission, reflection"
 	plt.suptitle(title)
 	plt.tight_layout()
 	plt.subplots_adjust(top=0.9)
-# 	plt.show()
+	plt.show()
 	
 
 if __name__ == '__main__':
@@ -472,5 +502,16 @@ if __name__ == '__main__':
 	if debug_mode:
 		print("Debug mode\n")
 	args = parser.parse_args()
+	
+	print("\nStart simulation\n")
+
+	# Store a bunch of downloaded data
+	if args.trns:
+		wl_T_data, T_data = reference_data(args.trns)
+	if args.refl:
+		wl_R_data, R_data = reference_data(args.refl)
+	else:
+		print("Using no reference data.\n")
+
 	
 	main()

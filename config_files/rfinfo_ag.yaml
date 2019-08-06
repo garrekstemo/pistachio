@@ -1,10 +1,20 @@
 num_layers: 1
 num_points: 100
-min_wl: 0.19
+min_wl: 1.19
 max_wl: 20.90
-substrate:
+wave:     # properties of initial em wave 
+    theta_in: 0. # incident angle of em wave
+    A0: 0   # magnitude of left-progagating wave
+    B0: 1   # magnitude of right-propagating wave
+bound1:
     material: SiO2
-    param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/SiO2_n_Kischkat.csv"
+    param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/SiO2_n_1.54-14.2um_Kischkat.csv"
+bound2:
+    material: Air
+    thickness: 0.0
+    wavelength: [0.3]
+    index: 1.0
+    extinction: 0.0
 layers:
     layer0: 
         material: Ag
