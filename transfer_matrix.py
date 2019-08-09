@@ -222,12 +222,6 @@ def get_layers_from_yaml(device_dict):
 	return layers
 
 
-def multilayer_matrix(array):
-	"""Generates the transfer matrix for a 1D array of individual
-	   layer matrices"""
-	TM = np.linalg.multi_dot(array)
-	return TM
-
 def reflectance(M_):
     """Input: multilayer matrix, M.
        Output: reflectance calculation."""
@@ -393,6 +387,9 @@ def reference_data(data_file):
 			wavelength.append(wl)
 			Y.append(float(row[1]))
 	return wavelength, Y
+
+# def main_loop():
+	
 
 
 def main():
