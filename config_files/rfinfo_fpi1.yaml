@@ -1,5 +1,5 @@
 num_layers: 3
-num_points: 1000
+num_points: 10000
 min_wl: 0.21  # um
 max_wl: 19.1   # um
 wave:     # properties of initial em wave 
@@ -10,13 +10,13 @@ bound1:
     material: Air
     thickness: 0
     wavelength: [0.3]
-    index: 1.0
+    index: 1.3
     extinction: 0.0
 bound2:
     material: Air
     thickness: 0
     wavelength: [0.3]
-    index: 1.0
+    index: 1.3
     extinction: 0.0
 layers:
     layer0: 
@@ -27,7 +27,7 @@ layers:
         material: Air
         thickness: 12300  # nm
         wavelength: [0.3]
-        index: 1.0
+        index: 1.3
         extinction: 0.0
     layer2: 
         material: Au

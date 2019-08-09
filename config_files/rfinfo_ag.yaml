@@ -8,7 +8,10 @@ wave:     # properties of initial em wave
     B0: 1   # magnitude of right-propagating wave
 bound1:
     material: SiO2
-    param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/SiO2_n_1.54-14.2um_Kischkat.csv"
+    thickness: 0.0
+    wavelength: [0.3]
+    index: 1.0
+    extinction: 0.0
 bound2:
     material: Air
     thickness: 0.0
@@ -18,6 +21,6 @@ bound2:
 layers:
     layer0: 
         material: Ag
-        thickness: 20  
+        thickness: 20
         param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/Ag_SiO2_n_Ciesielski.csv"
 

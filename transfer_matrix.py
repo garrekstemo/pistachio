@@ -7,7 +7,9 @@
 import argparse
 import sys
 import csv
+from itertools import tee
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import numpy as np
 import scipy as sp
 import scipy.constants as sc
@@ -26,16 +28,28 @@ class Light:
 		
 		self.wavelength = wavelength
 # 		self.omega = 2*np.pi*c / wavelength  # angular frequency
-		self.freq = c / wavelength  # frequency
-		self.k = 2*np.pi / wavelength  # wavenumber
-		self.energy_J = h*c / wavelength  # energy in Joules
-		self.energy_ev = self.energy_J / sc.eV  # energy in electron-volts
+# 		self.freq = c / wavelength  # frequency
+# 		self.k = 2*np.pi / wavelength  # wavenumber
+# 		self.energy_J = h*c / wavelength  # energy in Joules
+# 		self.energy_ev = self.energy_J / sc.eV  # energy in electron-volts
 		self.amplitude = []
 		self.trans_amplitude = np.array([1, 0])
 		self.matrices = []
 		
 	def omega(self):
 		return 2*np.pi*c / self.wavelength
+
+	def energy_J(self):
+		return h*c / self.wavelength
+	
+	def energy_ev(self):
+		return h*c / self.wavelength / sc.eV
+		
+	def wavenumber(self):
+		return 2*np.pi / self.wavelength
+		
+	def frequency(self):
+		return c / self.wavelength
 
 
 class Layer:
@@ -76,15 +90,17 @@ class Layer:
 				n = float(row[1])
 				self.wavelength.append(wl)
 				self.index.append(n)
-				if row[2]:
+				try:
 					K = float(row[2])
 					self.extinct.append(K)
+				except IndexError:
+					self.extinct.append(0.)
 				
 	def get_data_from_txt(self, path):
 		"""Used for filmetrics.com data"""
 		with open(path, 'r') as params:
 			header = next(params)
-			unit = None
+			unit = 1
 			if 'nm' in header:
 				unit = 10**-3
 			lines = params.readlines()
@@ -118,7 +134,7 @@ class Layer:
 			self.wavelength = self.set_wavelengths()
 			for idx, lmbda in enumerate(self.wavelength):
 				self.waves[lmbda] = self.index[idx] + self.extinct[idx]
-				
+
 		elif isinstance(self.index, list):
 			new_n = self.interpolate_refraction(self.wavelength, self.index)
 			new_K = self.interpolate_refraction(self.wavelength, self.extinct)
@@ -162,7 +178,8 @@ class Layer:
 		elif args.pwave:
 			return Dp
 		else:
-			print("No wave polarization passed in. See --help for more info. Exiting....")
+			print("")
+			print("Error: No wave polarization passed in. See --help for more info. Exiting....")
 			sys.exit()
 		
 
@@ -215,13 +232,61 @@ def get_layers_from_yaml(device_dict):
 			layer_class.extinct = layer['extinction']
 			layer_class.wavelength = layer['wavelength']
 		else:
-			print("Error in the yaml file.")
+			print("ERROR: Incorrect yaml config format. Reference default template.")
 			
 		layers.append(layer_class)
 
 	return layers
 
 
+<<<<<<< Updated upstream
+=======
+def get_beam_profile(beam_csv):
+	"""Jasco FTIR has weird non utf-8 characters in the footer and partway through data.
+	This annoyance is kinda dealt with."""
+	
+	with open(beam_csv, 'r', encoding="utf8", errors="ignore") as beam:
+		num_header_rows = 18
+		num = 0
+		reader = csv.reader(beam)
+		wavenum = []
+		field = []
+		
+		while num <= num_header_rows:
+			next(reader, None)
+			num += 1
+
+		next_reader, reader = tee(reader)
+		next(next_reader)
+		try:
+			for row in reader:
+				try:
+					x = float(row[0])
+					y = float(row[1])
+					wavenum.append(x)
+					field.append(float(y))
+					next(next_reader)
+				except (IndexError, ValueError):
+					pass
+		except StopIteration:
+			pass
+		
+	return wavenum, field
+
+def attenuation_coefficient(beam_intensity, x):
+	"""Takes beam intensity as array"""
+	
+	dI = np.gradient(beam_intensity, x)
+	
+	return dI / beam_intensity
+	
+def kramers_kronig(alpha):
+	"""Take attenuation coefficient. Returns real part of index of refraction."""
+	
+	
+
+
+>>>>>>> Stashed changes
 def reflectance(M_):
     """Input: multilayer matrix, M.
        Output: reflectance calculation."""
@@ -259,7 +324,12 @@ def build_matrix_list(wave_obj, theta, bound1, bound2, layers):
 	matrices = []
 # 	lmbda = wave_obj[idx] * um
 # 	light = Light(lmbda)
-	n0 = bound1.index + 1j*bound1.extinct
+
+	n0 = 0
+	if isinstance(bound1.index, np.ndarray):
+		n0 = bound1.waves[wave_key]
+	else:
+		n0 = bound1.index + 1j*bound1.extinct
 	D0 = bound1.dynamical_matrix(n0, theta)
 	D0inv = np.linalg.inv(D0)
 	matrices.append(D0inv)
@@ -275,7 +345,11 @@ def build_matrix_list(wave_obj, theta, bound1, bound2, layers):
 		matrices.extend([D, P, Dinv])
 
 	# Add transmission region medium to matrix list
-	ns = bound2.index + 1j*bound2.extinct
+	ns = 0
+	if isinstance(bound2.index, np.ndarray):
+		ns = bound2.waves[wave_key]
+	else:
+		ns = bound2.index + 1j*bound2.extinct
 	Ds = bound2.dynamical_matrix(ns, theta)
 	matrices.append(Ds)
 
@@ -403,11 +477,12 @@ def main():
 	
 	# TODO: make code work for bounds with frequency dependent refractive indices
 	bound1 = set_bound(device, 'bound1')
-	bound2 = set_bound(device, 'bound2') 
+	bound2 = set_bound(device, 'bound2')
 	
+	print("{} layers".format(device['num_layers']))
 	for layer in layers:
 		# interpolating from downloaded index data, making new data points
-		print("\n", str(layer.material) + ", d=" + str(int(layer.thickness*10**9)) + "nm")
+		print(str(layer.material) + ", d=" + str(int(layer.thickness*10**9)) + "nm")
 		layer.make_new_data_points()
 
 	# We should separate this from the Layer class. 
@@ -417,70 +492,101 @@ def main():
 	# Outputs
 	T = []
 	R = []
+	A = []
 	E_amps = []
 	intensity = []
+# 	beams = "/Users/garrek/projects/raw_data/190731/0.csv"
+# 	k, efield = get_beam_profile(beams)
 	
+# 	alpha = attenuation_coefficient(efield, k)
+
 	for lm in wavelens:
 		lmbda = Light(lm)
 		all_of_the_lights.append(lmbda)
 		M = build_matrix_list(lmbda, inc_ang, bound1, bound2, layers)
 		lmbda.matrices = M
 		TM = np.linalg.multi_dot(M)
-		print(TM)
 		trns = transmittance(TM).real
 		refl = reflectance(TM).real
 		T.append(trns)
 		R.append(refl)
+		abso = 1 - trns - refl
+		A.append(abso)
 
-	for lm in all_of_the_lights:
-		matrices = lm.matrices
-		As, Bs = lm.trans_amplitude
-		E_amps.append(field_amp(matrices, As, Bs))
+# 	for lm in all_of_the_lights:
+# 		matrices = lm.matrices
+# 		As, Bs = lm.trans_amplitude
+# 		E_amps.append(field_amp(matrices, As, Bs))
 
-	for amp in E_amps:
-		E = amp[0][1]
-		I = E*np.conj(E)
-		intensity.append(I.real)
-		
+# 	for amp in E_amps:
+# 		E = amp[0][1]
+# 		I = E*np.conj(E)
+# 		intensity.append(I.real)
+
 
 	# ===== Make Plots ===== #
 	
 	print("_"*50)
 	print("Generating plots...")
 	fig, axs = plt.subplots(3, 1, sharex=True)
-	
+	gs1 = gridspec.GridSpec(3, 1)
+	gs1.update(wspace=0.025, hspace=0.005)
+
 	ax = axs[0]
-	ax.plot(wavelens, T, 'b-', label="calculated data")
+	ax.plot(wavelens, T, 'b-', label="simulation")
 	if args.trns:
-		ax.plot(wl_T_data, T_data, linestyle="dashed", color='0.3', label="downloaded data")
-	ax.set_ylabel('transmittance')
-	ax.set_xlim(0, 10)
-	ax.legend()
+		ax.plot(wl_T_data, T_data, linestyle="dashed", color='#FF5733', label="downloaded data")
+	ax.set_ylabel('Transmittance %', fontsize=16)
+	ax.tick_params(axis='both', labelsize=16)
+# 	ax.set_xlabel('wavelength ($\mu$m)', fontsize=20)
+	ax.set_xlim(1, 10)
+# 	ax.legend()
+	
 	
 	ax = axs[1]
 	ax.plot(wavelens, R, 'b-', label="calculated data")
 	if args.refl:
-		ax.plot(wl_R_data, R_data, 'r--', label="downloaded data")
-	ax.set_xlabel('wavelength ($\mu$m)')
-	ax.set_ylabel('reflectance')
-	ax.legend()
+		ax.plot(wl_R_data, R_data, linestyle="dashed", color='#FF5733', label="downloaded data")
+	ax.set_ylabel('Reflectance %', fontsize=16)
 	
 	ax = axs[2]
-	ax.plot(wavelens, intensity)
+	ax.plot(wavelens, A, 'b-', label="calculated data")
+	if args.absorp:
+		ax.plot(wl_A_data, A_data, linestyle="dashed", color="#FF5733", label="downloaded data")
+	ax.set_ylabel('Absorptance %', fontsize=16)
+	ax.set_xlabel('wavelength ($\mu$m)', fontsize=16)
 	
-# 	d = str(int(au.thickness*10**9)) + ' nm'
-	title = "Index of refraction (n, K), transmission, reflection"
-	plt.suptitle(title)
-	plt.tight_layout()
+	title = "Etalon with 10 nm Au film, 10 micron air gap"
+# 	plt.suptitle(title, fontsize=24)
 	plt.subplots_adjust(top=0.9)
+# 	plt.tight_layout()
 	plt.show()
 	
+
+
+
+# ===== Plotting FTIR data ===== #
+# 	x_file = "/Users/garrek/Desktop/fpi0xwave.txt"
+# 	y_file = "/Users/garrek/Desktop/trans0.txt"
+# 	x_data = []
+# 	y_data = []
+# 	
+# 	with open(x_file, 'r') as xf:
+# 		lines = xf.readlines()
+# 		for line in lines:
+# 			x_data.append(float(line))
+# 	with open(y_file, 'r') as yf:
+# 		lines = yf.readlines()
+# 		for line in lines:
+# 			y_data.append(float(line))
+# ============================== #
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	device_help = "path for a yaml file from config_files describing a device"
 	reflectance_help = "path for reflectance data downloaded from filmetrics"
 	transmittance_help = "path for transmittance data downloaded from filmetrics"
+	absorptance_help = "path for absorptance data downloaded from filmetrics"
 	pwave_help = "boolean, calculate for p-wave"
 	swave_help = "boolean, calculate for s-wave"
 	
@@ -495,6 +601,7 @@ if __name__ == '__main__':
 						help=transmittance_help)
 	parser.add_argument('-R', '--refl',
 						help=reflectance_help)
+	parser.add_argument('-A', '--absorp', help=absorptance_help)
 	debug_mode = parser.parse_args().debug
 	if debug_mode:
 		print("Debug mode\n")
@@ -507,8 +614,9 @@ if __name__ == '__main__':
 		wl_T_data, T_data = reference_data(args.trns)
 	if args.refl:
 		wl_R_data, R_data = reference_data(args.refl)
+	if args.absorp:
+		wl_A_data, A_data = reference_data(args.absorp)
 	else:
 		print("Using no reference data.\n")
 
-	
 	main()
