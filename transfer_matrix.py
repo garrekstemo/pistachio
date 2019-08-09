@@ -196,9 +196,34 @@ def get_dict_from_yaml(yaml_file):
                           device config file do not match.".format(num_layers, len_layers)
 		assert num_layers == len_layers, assert_message
 	return device
+	
+def set_bound(device_, bound_name):
+	"""Takes device dictionary and name of bounding medium as a string"""
+	
+	bound_msg = "Boundary material name is not a string."
+	assert isinstance(bound_name, str), bound_msg
+	
+	num_points = device_['num_points']
+	MIN_WL = device_['min_wl']
+	MAX_WL = device_['max_wl']
+	name = device_[bound_name]['material']
+	bound = Layer(name, num_points, MIN_WL, MAX_WL)
+	param_path = 'param_path'
+	
+	if param_path in device_[bound_name]:
+		params = device_[bound_name][param_path]
+		bound.get_data_from_csv(params)
+		bound.make_new_data_points()
+	else:
+		bound.index = device_[bound_name]['index']
+		bound.extinct = device_[bound_name]['extinction']
+# 		bound.make_new_data_points()
+	
+	return bound
+		
     
 def get_layers_from_yaml(device_dict):
-	"""Takes device dictionary and outputs all layers as a list"""
+	"""Takes device dictionary and outputs all layer objects as a list."""
 	val1 = 'num_layers'
 	val2 = 'num_points'
 	val3 = 'min_wl'
@@ -242,8 +267,10 @@ def get_layers_from_yaml(device_dict):
 <<<<<<< Updated upstream
 =======
 def get_beam_profile(beam_csv):
-	"""Jasco FTIR has weird non utf-8 characters in the footer and partway through data.
-	This annoyance is kinda dealt with."""
+	"""Gets field distribution data from FTIR csv file.
+	   Outputs list of wavenumbers and field amplitudes.
+	   WARNING: Jasco FTIR has weird non utf-8 characters in the footer and 
+	   partway through data. This annoyance is kind of dealt with. Might have problems."""
 	
 	with open(beam_csv, 'r', encoding="utf8", errors="ignore") as beam:
 		num_header_rows = 18
@@ -282,8 +309,6 @@ def attenuation_coefficient(beam_intensity, x):
 	
 def kramers_kronig(alpha):
 	"""Take attenuation coefficient. Returns real part of index of refraction."""
-	
-	
 
 
 >>>>>>> Stashed changes
@@ -388,30 +413,7 @@ def field_amp(matrix_arr, As_, Bs_):
 	return El
 	
 
-def set_bound(device_, bound_name):
-	"""Takes device dictionary and name of bounding material as a string"""
-	
-	bound_msg = "Boundary material name is not a string."
-	assert isinstance(bound_name, str), bound_msg
-	
-	num_points = device_['num_points']
-	MIN_WL = device_['min_wl']
-	MAX_WL = device_['max_wl']
-	name = device_[bound_name]['material']
-	bound = Layer(name, num_points, MIN_WL, MAX_WL)
-	param_path = 'param_path'
-	
-	if param_path in device_[bound_name]:
-		params = device_[bound_name][param_path]
-		bound.get_data_from_csv(params)
-		bound.make_new_data_points()
-	else:
-		bound.index = device_[bound_name]['index']
-		bound.extinct = device_[bound_name]['extinction']
-# 		bound.make_new_data_points()
-	
-	return bound
-		
+
 
 # ===== Fresnel equation functions below not used so much for now ===== #
 
