@@ -1,5 +1,5 @@
 num_layers: 5
-num_points: 10000
+num_points: 1000
 min_wl: 0.2
 max_wl: 10
 wave:

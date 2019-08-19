@@ -5,6 +5,7 @@
 # n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary part.
 
 import argparse
+import os
 import sys
 import csv
 from itertools import tee
@@ -81,7 +82,7 @@ class Layer:
 
 
 	def get_data_from_csv(self, path):
-		"""Used for refractiveindex.info data"""
+		"""Used for refractiveindex.info data. This site uses um for wavelength units."""
 		with open(path, 'r') as params:
 			reader = csv.reader(params)
 			next(reader, None)
@@ -118,6 +119,8 @@ class Layer:
 					self.extinct.append(K)
 				
 	def set_wavelengths(self):
+		"""Creates a new set of evenly-spaced wavelengths from start and 
+		   endpoint wavelengths and number of points specified in yaml config file."""
 		new_wl = np.linspace(self.min_wl, self.max_wl, num=self.num_points, endpoint=True)
 		return new_wl
 		
@@ -264,8 +267,6 @@ def get_layers_from_yaml(device_dict):
 	return layers
 
 
-<<<<<<< Updated upstream
-=======
 def get_beam_profile(beam_csv):
 	"""Gets field distribution data from FTIR csv file.
 	   Outputs list of wavenumbers and field amplitudes.
@@ -301,17 +302,17 @@ def get_beam_profile(beam_csv):
 	return wavenum, field
 
 def attenuation_coefficient(beam_intensity, x):
-	"""Takes beam intensity as array"""
+	"""NOT PROPERLY IMPLEMENTED. 
+	Takes beam intensity as array"""
 	
 	dI = np.gradient(beam_intensity, x)
 	
 	return dI / beam_intensity
 	
 def kramers_kronig(alpha):
-	"""Take attenuation coefficient. Returns real part of index of refraction."""
+	"""NOT IMPLEMENTED.
+	Take attenuation coefficient. Returns real part of index of refraction."""
 
-
->>>>>>> Stashed changes
 def reflectance(M_):
     """Input: multilayer matrix, M.
        Output: reflectance calculation."""
@@ -414,9 +415,7 @@ def field_amp(matrix_arr, As_, Bs_):
 	
 
 
-
 # ===== Fresnel equation functions below not used so much for now ===== #
-
 def fresnel(n1, n2, k1x, k2x):
 	"""Inputs:  Angular frequency of incident light
 			    refractive indices for two media
@@ -441,43 +440,16 @@ def transmission_matrix(r_ij, t_ij):
 	return D_ij
 # ========= ========= ========= ========= ========== ========= ======== #
 
-def reference_data(data_file):
-	"""Gets reference data downloaded from
-	websites. Filmetrics.com T,R,A data are in nanometers"""
-	wavelength = []
-	Y = []
-	unit = 1  # sets order of magnitude (nm or um)
-	with open(data_file, 'r') as ref:
-	
-		reader = None
-		if 'txt.tsv' in str(ref):
-			print('Filmetrics data. Units in nm')
-			unit = 10**-3
-			reader = csv.reader(ref, delimiter="\t")
-		else:
-			print("Refractiveindex.info data. Units in um")
-			reader = csv.reader(ref)
-		next(reader, None)  # Skip header
-		for row in reader:
-			wl = float(row[0]) * unit  # MAKE SURE UNITS ARE CORRECT
-			wavelength.append(wl)
-			Y.append(float(row[1]))
-	return wavelength, Y
 
-# def main_loop():
-	
+def main_loop():
+	"""Executes transfer matrix and other functions
+	   Writes output file."""
 
-
-def main():
 	# Inputs
 	device = get_dict_from_yaml(args.device)  # yaml config file stored as dictionary
 	layers = get_layers_from_yaml(device)  # a list of layer objects
-
-	# If zero, p-wave and s-wave should yield same transmission
 	em_wave = device['wave']
 	inc_ang = em_wave['theta_in']
-	
-	# TODO: make code work for bounds with frequency dependent refractive indices
 	bound1 = set_bound(device, 'bound1')
 	bound2 = set_bound(device, 'bound2')
 	
@@ -487,18 +459,17 @@ def main():
 		print(str(layer.material) + ", d=" + str(int(layer.thickness*10**9)) + "nm")
 		layer.make_new_data_points()
 
-	# We should separate this from the Layer class. 
+	# We should separate this from the Layer class.
 	wavelens = layers[0].wavelength  # still in units of um
 	all_of_the_lights = []
 	
+	# TODO: Organize outputs better cuz there'll probably be a lot of them.
 	# Outputs
 	T = []
 	R = []
 	A = []
 	E_amps = []
 	intensity = []
-# 	beams = "/Users/garrek/projects/raw_data/190731/0.csv"
-# 	k, efield = get_beam_profile(beams)
 	
 # 	alpha = attenuation_coefficient(efield, k)
 
@@ -515,80 +486,32 @@ def main():
 		abso = 1 - trns - refl
 		A.append(abso)
 
-# 	for lm in all_of_the_lights:
-# 		matrices = lm.matrices
-# 		As, Bs = lm.trans_amplitude
-# 		E_amps.append(field_amp(matrices, As, Bs))
-
-# 	for amp in E_amps:
-# 		E = amp[0][1]
-# 		I = E*np.conj(E)
-# 		intensity.append(I.real)
-
-
-	# ===== Make Plots ===== #
-	
-	print("_"*50)
-	print("Generating plots...")
-	fig, axs = plt.subplots(3, 1, sharex=True)
-	gs1 = gridspec.GridSpec(3, 1)
-	gs1.update(wspace=0.025, hspace=0.005)
-
-	ax = axs[0]
-	ax.plot(wavelens, T, 'b-', label="simulation")
-	if args.trns:
-		ax.plot(wl_T_data, T_data, linestyle="dashed", color='#FF5733', label="downloaded data")
-	ax.set_ylabel('Transmittance %', fontsize=16)
-	ax.tick_params(axis='both', labelsize=16)
-# 	ax.set_xlabel('wavelength ($\mu$m)', fontsize=20)
-	ax.set_xlim(1, 10)
-# 	ax.legend()
-	
-	
-	ax = axs[1]
-	ax.plot(wavelens, R, 'b-', label="calculated data")
-	if args.refl:
-		ax.plot(wl_R_data, R_data, linestyle="dashed", color='#FF5733', label="downloaded data")
-	ax.set_ylabel('Reflectance %', fontsize=16)
-	
-	ax = axs[2]
-	ax.plot(wavelens, A, 'b-', label="calculated data")
-	if args.absorp:
-		ax.plot(wl_A_data, A_data, linestyle="dashed", color="#FF5733", label="downloaded data")
-	ax.set_ylabel('Absorptance %', fontsize=16)
-	ax.set_xlabel('wavelength ($\mu$m)', fontsize=16)
-	
-	title = "Etalon with 10 nm Au film, 10 micron air gap"
-# 	plt.suptitle(title, fontsize=24)
-	plt.subplots_adjust(top=0.9)
-# 	plt.tight_layout()
-	plt.show()
-	
+	print("")
+	output = os.path.abspath(args.output)
+	with open (output, 'w') as out_file:
+		filewriter = csv.writer(out_file, delimiter=',')
+		header = ['Wavelength (um)', 
+				  'Transmittance (%)', 
+				  'Reflectance (%)', 
+				  'Absorptance (%)']
+		filewriter.writerow(header)
+		i = 0
+		while i < len(T):
+			row = [wavelens[i], T[i], R[i], A[i]]
+			filewriter.writerow(row)
+			i+=1
+	print("Wrote results to {}".format(output))
 
 
+def main():
+	main_loop()
 
-# ===== Plotting FTIR data ===== #
-# 	x_file = "/Users/garrek/Desktop/fpi0xwave.txt"
-# 	y_file = "/Users/garrek/Desktop/trans0.txt"
-# 	x_data = []
-# 	y_data = []
-# 	
-# 	with open(x_file, 'r') as xf:
-# 		lines = xf.readlines()
-# 		for line in lines:
-# 			x_data.append(float(line))
-# 	with open(y_file, 'r') as yf:
-# 		lines = yf.readlines()
-# 		for line in lines:
-# 			y_data.append(float(line))
-# ============================== #
+
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	device_help = "path for a yaml file from config_files describing a device"
-	reflectance_help = "path for reflectance data downloaded from filmetrics"
-	transmittance_help = "path for transmittance data downloaded from filmetrics"
-	absorptance_help = "path for absorptance data downloaded from filmetrics"
+	out_help = "path and name for output data file (must be .csv)"
 	pwave_help = "boolean, calculate for p-wave"
 	swave_help = "boolean, calculate for s-wave"
 	
@@ -597,28 +520,18 @@ if __name__ == '__main__':
 						help="doesn't do anything right now")
 	parser.add_argument("device",
 						help=device_help)
+	parser.add_argument("output", help=out_help)
 	parser.add_argument('-p', '--pwave', help=pwave_help, action='store_true')
 	parser.add_argument('-s', '--swave', help=swave_help, action='store_true')
-	parser.add_argument('-T', '--trns',
-						help=transmittance_help)
-	parser.add_argument('-R', '--refl',
-						help=reflectance_help)
-	parser.add_argument('-A', '--absorp', help=absorptance_help)
 	debug_mode = parser.parse_args().debug
 	if debug_mode:
 		print("Debug mode\n")
+		
 	args = parser.parse_args()
 	
+	output_message = "Output file must be .csv"
+	assert args.output[-4:] == ".csv", output_message
+		
 	print("\nStart simulation\n")
-
-	# Store a bunch of downloaded data
-	if args.trns:
-		wl_T_data, T_data = reference_data(args.trns)
-	if args.refl:
-		wl_R_data, R_data = reference_data(args.refl)
-	if args.absorp:
-		wl_A_data, A_data = reference_data(args.absorp)
-	else:
-		print("Using no reference data.\n")
 
 	main()
