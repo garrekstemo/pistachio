@@ -14,6 +14,7 @@ import sys
 import csv
 import numpy as np
 from scipy import optimize
+from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 
 
@@ -281,7 +282,7 @@ def angle_data():
 
 def Ecav(A, B):
 	
-	k = np.linspace(0, np.pi/2, np.pi/10)
+	k = np.linspace(0, np.pi/4, np.pi/100)
 	
 	return A + B*k**2
 
@@ -292,6 +293,9 @@ def cavity_modes_sim():
 	Em = 0.5*(Ecav + Evib) - np.sqrt(V**2 + (Evib - Ecav)**2)
 	
 	return 0
+
+def interpolate_polariton():
+	"""Not Implemented"""
 
 
 def cavity_modes():
