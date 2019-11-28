@@ -26,13 +26,8 @@ yaml = YAML()
 class Light:
 
 	def __init__(self, wavelength):
-		
+
 		self.wavelength = wavelength
-# 		self.omega = 2*np.pi*c / wavelength  # angular frequency
-# 		self.freq = c / wavelength  # frequency
-# 		self.k = 2*np.pi / wavelength  # wavenumber
-# 		self.energy_J = h*c / wavelength  # energy in Joules
-# 		self.energy_ev = self.energy_J / sc.eV  # energy in electron-volts
 		self.amplitude = []
 		self.trans_amplitude = np.array([1, 0])
 		self.matrices = []
@@ -81,9 +76,9 @@ class Layer:
 		self.complex = n + 1j*K
 
 
-	def get_data_from_csv(self, path):
+	def get_data_from_csv(self, index_path):
 		"""Used for refractiveindex.info data. This site uses um for wavelength units."""
-		with open(path, 'r') as params:
+		with open(index_path, 'r') as params:
 			reader = csv.reader(params)
 			next(reader, None)
 			for row in reader:
@@ -97,9 +92,9 @@ class Layer:
 				except IndexError:
 					self.extinct.append(0.)
 				
-	def get_data_from_txt(self, path):
+	def get_data_from_txt(self, index_path):
 		"""Used for filmetrics.com data"""
-		with open(path, 'r') as params:
+		with open(index_path, 'r') as params:
 			header = next(params)
 			unit = 1
 			if 'nm' in header:
@@ -242,8 +237,8 @@ def get_layers_from_yaml(device_dict):
 	
 	for i in range(num_layers):
 	
-		name = 'layer' + str(i)
-		layer = device_dict['layers'][name]
+		layer_str = 'layer' + str(i)
+		layer = device_dict['layers'][layer_str]
 		material = layer['material']
 		thickness = float(layer['thickness']) * 10**-9
 
@@ -295,6 +290,7 @@ def get_beam_profile(beam_csv):
 					field.append(float(y))
 					next(next_reader)
 				except (IndexError, ValueError):
+					# This is where we deal with weird utf8 characters
 					pass
 		except StopIteration:
 			pass

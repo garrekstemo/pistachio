@@ -1,5 +1,5 @@
-num_layers: 5
-num_points: 1000
+num_layers: 7
+num_points: 10000
 min_wl: 0.2
 max_wl: 10
 wave:
@@ -23,17 +23,25 @@ layers:
         material: Au
         thickness: 10
         param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/au_n_0.191-20.9um_Ciesielski.csv"
-    layer2:
+    layer2: 
+        material: Al2O3
+        thickness: 1
+        param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/Al2O3_n_0.21-55.6um_Querry.csv"
+    layer3:
         material: Air
-        thickness: 12300
+        thickness: 8000
         wavelength: [0.3]
         index: 1.38
         extinction: 0.0
-    layer3: 
+    layer4: 
+        material: Al2O3
+        thickness: 1
+        param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/Al2O3_n_0.21-55.6um_Querry.csv"
+    layer5: 
         material: Au
         thickness: 10
         param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/au_n_0.191-20.9um_Ciesielski.csv"
-    layer4: 
+    layer6: 
         material: Al2O3
         thickness: 1
         param_path: "/Users/garrek/projects/pistachio/data/refractiveindex_info/Al2O3_n_0.21-55.6um_Querry.csv"
