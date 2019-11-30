@@ -72,7 +72,7 @@ class Layer:
 				
 
 	def complex_index(self, n, K):
-		"""Not properly implemented"""
+		"""NOT IMPLEMENTED"""
 		self.complex = n + 1j*K
 
 
