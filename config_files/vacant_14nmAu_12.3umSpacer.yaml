@@ -1,4 +1,3 @@
-num_layers: 7
 num_points: 10000
 min_wl: 0.2
 max_wl: 10

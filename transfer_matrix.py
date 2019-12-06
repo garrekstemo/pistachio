@@ -187,12 +187,6 @@ def get_dict_from_yaml(yaml_file):
 
 	with open(yaml_file, 'r') as yml:
 		device = yaml.load(yml)
-		num_layers = int(device['num_layers'])
-		len_layers = int(len(device['layers']))
-    
-		assert_message = "num_layers ({}) and the number of layers specified ({}) in \
-                          device config file do not match.".format(num_layers, len_layers)
-		assert num_layers == len_layers, assert_message
 	return device
 	
 def set_bound(device_, bound_name):
@@ -222,12 +216,13 @@ def set_bound(device_, bound_name):
     
 def get_layers_from_yaml(device_dict):
 	"""Takes device dictionary and outputs all layer objects as a list."""
-	val1 = 'num_layers'
+	val1 = 'layers'
 	val2 = 'num_points'
 	val3 = 'min_wl'
 	val4 = 'max_wl'
 	
-	num_layers = int(device_dict[val1])
+	num_layers = len(device_dict[val1])
+	print("TEST1", num_layers)
 	num_points = int(device_dict[val2])
 	
 	# Minimum and maximum desired wavelengths
@@ -307,7 +302,7 @@ def attenuation_coefficient(beam_intensity, x):
 	
 def kramers_kronig(alpha):
 	"""NOT IMPLEMENTED.
-	Take attenuation coefficient. Returns real part of index of refraction."""
+	Takes attenuation coefficient. Returns real part of index of refraction."""
 
 def reflectance(M_):
     """Input: multilayer matrix, M.
@@ -449,7 +444,7 @@ def main_loop():
 	bound1 = set_bound(device, 'bound1')
 	bound2 = set_bound(device, 'bound2')
 	
-	print("{} layers".format(device['num_layers']))
+# 	print("{} layers".format(device['num_layers']))
 	for layer in layers:
 		# interpolating from downloaded index data, making new data points
 		print(str(layer.material) + ", d=" + str(int(layer.thickness*10**9)) + "nm")
