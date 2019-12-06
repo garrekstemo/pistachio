@@ -23,7 +23,7 @@ The data directory contains some refractive index `csv` files to be used for sim
 
 ### Config files
 
-Config files are stored in the .yaml format as a device with a configuration for each layer. Each layer requires a material name, thickness (in nanometers), and a path to a file containing the refractive index for each wavelength. If there is no file, then the user must input the index of refraction and extinction coefficient. For now, one wavelength in square brackets must also part of the layer, but this is overwritten later. This is an annoyance that comes from the Layer object structure and will be made simpler in future versions.
+Config files are stored in the .yaml format as a device with a configuration for each layer. Each layer requires a material name, thickness (in nanometers), and a path to a file containing the refractive index for each wavelength. If there is no file, then the user must input the index of refraction and extinction coefficient; in this case, the user should put `None` next to `wavelength:`.
 
 ```
 num_points: 1000
@@ -44,7 +44,7 @@ layers:
     layer2:
 	    material: Air
 	    thickness: 1000
-	    wavelength: [0.3]
+	    wavelength: None
 	    index: 1.2
 	    extinction: 0.0
 	layer3

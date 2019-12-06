@@ -9,14 +9,18 @@ import os
 import sys
 import csv
 from itertools import tee
+import logging
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
 import scipy as sp
 import scipy.constants as sc
 import scipy.interpolate
+import time
 from ruamel_yaml import YAML
 import pdb
+
+
 
 c = sc.c  # speed of light
 h = sc.h  # planck's constant
@@ -120,11 +124,12 @@ class Layer:
 		return new_wl
 		
 	def interpolate_refraction(self, x0, y0):
-		# WARNING: fill_value='extrapolate' might cause problems!!
+		#WARNING: fill_value='extrapolate' might cause problems!!
 		new_y = sp.interpolate.interp1d(x0, y0, fill_value="extrapolate")
 		return new_y
 
 	def make_new_data_points(self):
+	#TODO: Make this work when there are no wavelengths in a device
 		"""Makes new data points based on user-defined num_points and interpolation."""
 		if not isinstance(self.index, list):
 			self.index = [self.index]*self.num_points	
@@ -198,8 +203,8 @@ def set_bound(device_, bound_name):
 	num_points = device_['num_points']
 	MIN_WL = device_['min_wl']
 	MAX_WL = device_['max_wl']
-	name = device_[bound_name]['material']
-	bound = Layer(name, num_points, MIN_WL, MAX_WL)
+	dname = device_[bound_name]['material']
+	bound = Layer(dname, num_points, MIN_WL, MAX_WL)
 	param_path = 'param_path'
 	
 	if param_path in device_[bound_name]:
@@ -328,12 +333,13 @@ def transmittance(TM):
     return T
 
 def build_matrix_list(wave_obj, theta, bound1, bound2, layers):
-	"""TODO: Make this part of the Light object?
+	"""
 	Makes a wavelength object and bounds. Outputs a list of matrices that will
 	make the transfer matrix for that wavelength of light propagating 
 	through the device."""
-
-	wave_key = wave_obj.wavelength   # Keep this key stored to retrive index data
+	#TODO: Make this part of the Light object?
+	
+	wave_key = wave_obj.wavelength   # Keep this key stored to retrieve index data
 	wave_obj.wavelength = wave_obj.wavelength * 10**-6  # used for computation
 	omega = wave_obj.omega()
 # 	print("build matrix, wave key", wave_key)
@@ -342,7 +348,7 @@ def build_matrix_list(wave_obj, theta, bound1, bound2, layers):
 # 	lmbda = wave_obj[idx] * um
 # 	light = Light(lmbda)
 
-	n0 = 0
+	n0 = 0  # refractive index for incident bounding medium
 	if isinstance(bound1.index, np.ndarray):
 		n0 = bound1.waves[wave_key]
 	else:
@@ -441,20 +447,22 @@ def main_loop():
 	layers = get_layers_from_yaml(device)  # a list of layer objects
 	em_wave = device['wave']
 	inc_ang = em_wave['theta_in']
+	#FIXME: Do we really need to explicitly state bounding material?
 	bound1 = set_bound(device, 'bound1')
 	bound2 = set_bound(device, 'bound2')
 	
-# 	print("{} layers".format(device['num_layers']))
 	for layer in layers:
 		# interpolating from downloaded index data, making new data points
+		#TODO: Why am I doing this?
 		print(str(layer.material) + ", d=" + str(int(layer.thickness*10**9)) + "nm")
 		layer.make_new_data_points()
 
 	# We should separate this from the Layer class.
+	# This should be stored as an array somewhere.
 	wavelens = layers[0].wavelength  # still in units of um
 	all_of_the_lights = []
 	
-	# TODO: Organize outputs better cuz there'll probably be a lot of them.
+	#TODO: Organize outputs better cuz there'll probably be a lot of them.
 	# Outputs
 	T = []
 	R = []
@@ -467,8 +475,9 @@ def main_loop():
 	for lm in wavelens:
 		lmbda = Light(lm)
 		all_of_the_lights.append(lmbda)
+		# M only uses the wavelength -- doesn't need Light class
 		M = build_matrix_list(lmbda, inc_ang, bound1, bound2, layers)
-		lmbda.matrices = M
+# 		lmbda.matrices = M
 		TM = np.linalg.multi_dot(M)
 		trns = transmittance(TM).real
 		refl = reflectance(TM).real
@@ -495,7 +504,18 @@ def main_loop():
 
 
 def main():
+
+	LOG_FILENAME = 'transfer_matrix.log'
+	logging.basicConfig(filename=LOG_FILENAME, level=logging.INFO)
+	print("\nStart simulation\n")
+	
+	start_time = time.time()
 	main_loop()
+	end_time = time.time()
+	elapsed_time = np.round(end_time - start_time, 4)
+	logging.info('elapsed time: {} seconds'.format(elapsed_time))
+	
+	print("Simulation time: {} seconds".format(elapsed_time))
 
 
 
@@ -514,6 +534,7 @@ if __name__ == '__main__':
 	parser.add_argument("output", help=out_help)
 	parser.add_argument('-p', '--pwave', help=pwave_help, action='store_true')
 	parser.add_argument('-s', '--swave', help=swave_help, action='store_true')
+	parser.add_argument('-T', '--angles', action='store_true')
 	debug_mode = parser.parse_args().debug
 	if debug_mode:
 		print("Debug mode\n")
@@ -523,6 +544,6 @@ if __name__ == '__main__':
 	output_message = "Output file must be .csv"
 	assert args.output[-4:] == ".csv", output_message
 		
-	print("\nStart simulation\n")
+
 
 	main()
