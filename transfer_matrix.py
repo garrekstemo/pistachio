@@ -129,7 +129,6 @@ class Layer:
 		return new_y
 
 	def make_new_data_points(self):
-	#TODO: Make this work when there are no wavelengths in a device
 		"""Makes new data points based on user-defined num_points and interpolation."""
 		if not isinstance(self.index, list):
 			self.index = [self.index]*self.num_points	
@@ -337,44 +336,36 @@ def build_matrix_list(wave_obj, theta, bound1, bound2, layers):
 	Makes a wavelength object and bounds. Outputs a list of matrices that will
 	make the transfer matrix for that wavelength of light propagating 
 	through the device."""
-	#TODO: Make this part of the Light object?
 	
 	wave_key = wave_obj.wavelength   # Keep this key stored to retrieve index data
 	wave_obj.wavelength = wave_obj.wavelength * 10**-6  # used for computation
 	omega = wave_obj.omega()
-# 	print("build matrix, wave key", wave_key)
-# 	print("build matrix, wave obj wl", wave_obj.wavelength)
+
+
+	# 3 matrices for middle layers, 1 each for bounds
+	num_matrices = (len(layers) - 2) * 3 + 2
+
 	matrices = []
-# 	lmbda = wave_obj[idx] * um
-# 	light = Light(lmbda)
 
-	n0 = 0  # refractive index for incident bounding medium
-	if isinstance(bound1.index, np.ndarray):
-		n0 = bound1.waves[wave_key]
-	else:
-		n0 = bound1.index + 1j*bound1.extinct
-	D0 = bound1.dynamical_matrix(n0, theta)
-	D0inv = np.linalg.inv(D0)
-	matrices.append(D0inv)
+	for idx, layer in enumerate(layers):
 
-	for layer in layers:
-# 		n  = layer.index[idx] + 1j*layer.extinct[idx]
 		n = layer.waves[wave_key]
 		kx = layer.wavenumber(n, omega, theta)[0]
-
 		D = layer.dynamical_matrix(n, theta)
 		Dinv = np.linalg.inv(D)
 		P = layer.propagation_matrix(kx)
-		matrices.extend([D, P, Dinv])
+		
+		if idx == 0:
+			matrices.append(Dinv)
+			
+		elif idx == len(layers)-1:
+			matrices.append(D)
+			
+		else:
+			matrices.append(D)
+			matrices.append(P)
+			matrices.append(Dinv)
 
-	# Add transmission region medium to matrix list
-	ns = 0
-	if isinstance(bound2.index, np.ndarray):
-		ns = bound2.waves[wave_key]
-	else:
-		ns = bound2.index + 1j*bound2.extinct
-	Ds = bound2.dynamical_matrix(ns, theta)
-	matrices.append(Ds)
 
 	return matrices
 
