@@ -1,0 +1,26 @@
+num_layers: 1
+num_points: 10000
+min_wl: 0.21
+max_wl: 2.4
+wave:     # properties of initial em wave 
+    theta_in: 0. # incident angle of em wave
+    A0: 0   # magnitude of left-progagating wave
+    B0: 1   # magnitude of right-propagating wave
+layers:
+    layer0:
+        material: Air
+        thickness: 0
+        wavelength: None
+        index: 1.0
+        extinction: 0.0
+    layer1: 
+        material: Au
+        thickness: 100
+        param_path: "/pistachio/data/filmetrics/Au.txt"
+    layer2: 
+        material: Air
+        thickness: 0
+        wavelength: None
+        index: 1.0
+        extinction: 0.0
+

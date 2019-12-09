@@ -1,0 +1,31 @@
+num_points: 10000
+min_wl: 0.2
+max_wl: 10
+wave:
+    theta_in: 0.0
+    A0: 1
+    B0: 0
+layers:
+    layer0:
+        material: SiO2
+        thickness: 0
+        param_path: "/pistachio/data/refractiveindex_info/SiO2_n_1.54-14.2um_Kischkat.csv"
+    layer1: 
+        material: Au
+        thickness: 10
+        param_path: "/pistachio/data/refractiveindex_info/au_n_0.191-20.9um_Ciesielski.csv"
+    layer2:
+        material: Air
+        thickness: 10000
+        wavelength: None
+        index: 1.0
+        extinction: 0.0
+    layer3: 
+        material: Au
+        thickness: 10
+        param_path: "/pistachio/data/refractiveindex_info/au_n_0.191-20.9um_Ciesielski.csv"
+    layer4: 
+        material: SiO2
+        thickness: 0
+        param_path: "/pistachio/data/refractiveindex_info/SiO2_n_1.54-14.2um_Kischkat.csv"
+

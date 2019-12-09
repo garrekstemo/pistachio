@@ -356,9 +356,9 @@ def build_matrix_list(wavelength, theta, layers):
 			matrices.append(D)
 
 		else:
-			matrices.append(Dinv)
-			matrices.append(P)
 			matrices.append(D)
+			matrices.append(P)
+			matrices.append(Dinv)
 			
 	return matrices
 
