@@ -1,0 +1,22 @@
+num_points: 10000
+min_wl: 0.2
+max_wl: 2.5
+wave:
+    theta_in: 0.
+    A0: 1
+    B0: 0
+layers:
+    layer0: 
+        material: SiO2
+        thickness: 0
+        param_path: '/Users/garrek/projects/pistachio/data/filmetrics/SiO2.txt'
+
+    layer1: 
+        material: Au
+        thickness: 100
+        param_path: '/Users/garrek/projects/pistachio/data/filmetrics/Au.txt'
+    layer2:
+        material: SiO2
+        thickness: 0
+        param_path: '/Users/garrek/projects/pistachio/data/filmetrics/SiO2.txt'
+

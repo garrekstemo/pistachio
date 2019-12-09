@@ -1,0 +1,32 @@
+num_points: 10000
+min_wl: 1.0
+max_wl: 1.5
+wave:
+    theta_in: 0.
+    A0: 1
+    B0: 0
+layers:
+    layer0: 
+        material: CaF2
+        thickness: 3
+        wavelength: NOne
+        index: 1.
+        extinction: 0.
+    layer1: 
+        material: Something
+        thickness: 10
+        wavelength: None
+        index: 1.2
+        extinction: 0.
+    layer2:
+        material: Whatev
+        thickness: 10
+        wavelength: None
+        index: 5.
+        extinction: 0.
+    layer3:
+        material: CaF2
+        thickness: 3
+        wavelength: None
+        index: 1.
+        extinction: 0.
