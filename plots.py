@@ -7,11 +7,12 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 
-def plot_simulation(inputfile):
+def TRA_plots(inputfile):
 	wavelength = []
 	transmittance = []
 	reflectance = []
-	absorptance = []	
+	absorptance = []
+	field = []
 	data = sys.argv[1]
 
 	with open(data, 'r') as data:
@@ -24,33 +25,34 @@ def plot_simulation(inputfile):
 			absorptance.append(float(row[3]))
 			
 	print("Generating plots...")
-	fig, axs = plt.subplots(3, 1, sharex=True)
+	fig, ax = plt.subplots(1, 1, sharex=True)
 	gs1 = gridspec.GridSpec(3, 1)
 	gs1.update(wspace=0.025, hspace=0.005)
 
-	ax = axs[0]
+# 	ax = axs[0]
 	ax.plot(wavelength, transmittance, 'b-', label="transfer matrix")
 	if args.trns:
 		ax.plot(wl_T_data, T_data, linestyle="dashed", color='#FF5733', label="downloaded data")
-	ax.set_ylabel('Transmittance %', fontsize=16)
-	ax.tick_params(axis='both', labelsize=16)
+	ax.set_ylabel('Transmittance %', fontsize=12)
+	ax.tick_params(axis='both', labelsize=12)
 	# 	ax.set_xlabel('wavelength ($\mu$m)', fontsize=20)
-	ax.set_xlim(1, 10)
+# 	ax.set_xlim(1, 10)
 	# 	ax.legend()
 
 
-	ax = axs[1]
-	ax.plot(wavelength, reflectance, 'b-', label="transfer matrix")
-	if args.refl:
-		ax.plot(wl_R_data, R_data, linestyle="dashed", color='#FF5733', label="downloaded data")
-	ax.set_ylabel('Reflectance %', fontsize=16)
-
-	ax = axs[2]
-	ax.plot(wavelength, absorptance, 'b-', label="transfer matrix")
-	if args.abso:
-		ax.plot(wl_A_data, A_data, linestyle="dashed", color="#FF5733", label="downloaded data")
-	ax.set_ylabel('Absorptance %', fontsize=16)
-	ax.set_xlabel('wavelength ($\mu$m)', fontsize=16)
+# 	ax = axs[1]
+# 	ax.plot(wavelength, reflectance, 'b-', label="transfer matrix")
+# 	if args.refl:
+# 		ax.plot(wl_R_data, R_data, linestyle="dashed", color='#FF5733', label="downloaded data")
+# 	ax.set_ylabel('Reflectance %', fontsize=12)
+# 
+# 	ax = axs[2]
+# 	ax.plot(wavelength, absorptance, 'b-', label="transfer matrix")
+# 	if args.abso:
+# 		ax.plot(wl_A_data, A_data, linestyle="dashed", color="#FF5733", label="downloaded data")
+# 	ax.set_ylabel('Absorptance %', fontsize=12)
+# 	ax.set_xlabel('wavelength ($\mu$m)', fontsize=12)
+	
 
 	title = "Etalon with 10 nm Au film, 10 micron air gap"
 	# 	plt.suptitle(title, fontsize=24)
@@ -61,14 +63,14 @@ def plot_simulation(inputfile):
 
 def reference_data(data_file):
 	"""Gets reference data downloaded from
-	websites. Filmetrics.com T,R,A data are in nanometers"""
+	websites. Filmetrics.com data are in nanometers"""
 	wavelength = []
 	Y = []
 	unit = 1  # sets order of magnitude (nm or um)
 	with open(data_file, 'r') as ref:
 	
 		reader = None
-		if 'txt.tsv' in str(ref):
+		if 'filmetrics' in str(ref):
 			print('Filmetrics data. Units in nm')
 			unit = 10**-3
 			reader = csv.reader(ref, delimiter="\t")
@@ -84,8 +86,9 @@ def reference_data(data_file):
 
 
 def main():
-	simulation_data = sys.argv[1]
-	plot_simulation(simulation_data)
+	TRA_data = sys.argv[1]
+# 	field_profile_data = sys.argv[2]
+	TRA_plots(TRA_data)
 	
 	
 	# ===== Plotting FTIR data ===== #
@@ -106,6 +109,8 @@ def main():
 
 
 if __name__ == "__main__":
+	
+	#TODO: Make flag to toggle powerpoint fonts and font sizes
 	parser = argparse.ArgumentParser()
 	
 	simulation_help = "Input file from transfer_matrix.py with transmittance, \

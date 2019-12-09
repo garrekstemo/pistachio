@@ -1,3 +1,5 @@
+#! /anaconda3/bin/python
+
 """
 Polariton Data Processing
 Author: Garrek Stemo
@@ -22,7 +24,7 @@ class Lorentzian:
 	def __init__(self, amplitude=None, x0=None, y0=None, gamma=None):
 		"""These parameters function as initial guesses for the fit function."""
 		if amplitude == None:
-			self.amplitude = 1.
+			self.amplitude = 0.5
 		if x0 == None:
 			self.x0 = 1000.
 		if y0 == None:

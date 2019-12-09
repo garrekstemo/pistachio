@@ -63,7 +63,7 @@ class Layer:
 		self.wavelength = []  # array of free space wavelengths
 		self.index = []  # array of refractive indices
 		self.extinct = []  # array of extinction coefficients
-		self.waves = {}
+		self.waves = {}  # Needs to be curly braces
 		self.complex = complex
 		
 	def __repr__(self):
@@ -172,7 +172,7 @@ class Layer:
 		m = n_ * np.cos(theta)
 		Ds = np.array([[1, 1], [m, -m]])
 					 
-		# s-wave dynamical matrix
+		# p-wave dynamical matrix
 		Dp = np.array([[np.cos(theta), np.cos(theta)], [n_, -n_]])
 		
 		if args.swave:
@@ -226,7 +226,7 @@ def get_layers_from_yaml(device_dict):
 	val4 = 'max_wl'
 	
 	num_layers = len(device_dict[val1])
-	print("TEST1", num_layers)
+	print("Number of layers:", num_layers)
 	num_points = int(device_dict[val2])
 	
 	# Minimum and maximum desired wavelengths
@@ -317,7 +317,7 @@ def reflectance(M_):
     r_sq = r * np.conj(r)
     r_sq = r_sq.real
     R = r_sq
-   
+
     return R
    
 def transmittance(TM):
@@ -331,25 +331,19 @@ def transmittance(TM):
 
     return T
 
-def build_matrix_list(wave_obj, theta, bound1, bound2, layers):
+def build_matrix_list(wavelength, theta, layers):
 	"""
 	Makes a wavelength object and bounds. Outputs a list of matrices that will
 	make the transfer matrix for that wavelength of light propagating 
 	through the device."""
 	
-	wave_key = wave_obj.wavelength   # Keep this key stored to retrieve index data
-	wave_obj.wavelength = wave_obj.wavelength * 10**-6  # used for computation
-	omega = wave_obj.omega()
-
-
-	# 3 matrices for middle layers, 1 each for bounds
-	num_matrices = (len(layers) - 2) * 3 + 2
-
+	compute_wl = wavelength * 10**(-6)
+	omega = 2 * np.pi * sc.c / compute_wl
 	matrices = []
 
 	for idx, layer in enumerate(layers):
 
-		n = layer.waves[wave_key]
+		n = layer.waves[wavelength]
 		kx = layer.wavenumber(n, omega, theta)[0]
 		D = layer.dynamical_matrix(n, theta)
 		Dinv = np.linalg.inv(D)
@@ -360,50 +354,131 @@ def build_matrix_list(wave_obj, theta, bound1, bound2, layers):
 			
 		elif idx == len(layers)-1:
 			matrices.append(D)
-			
+
 		else:
-			matrices.append(D)
-			matrices.append(P)
 			matrices.append(Dinv)
-
-
+			matrices.append(P)
+			matrices.append(D)
+			
 	return matrices
 
 
-def field_amp(matrix_arr, As_, Bs_):
-	"""TODO: Make this part of the Light object?
+def matrix_product(matrices):
+	"""Product of matrices"""
+	
+	i = 0
+	M = np.array([[1,0], [0,1]])
+	for i in matrices:
+		M = np.dot(M, i)
+	return M
+
+def field_amp(matrix_list, A0_, B0_):
+	"""E_s = M*E_0
+		= D0inv * (Di_inv*P*Di)^n * D0  * E_0
 	Takes transfer matrix, final magnitude of EM wave, As, Bs.
 	Outputs E-field amplitude for given matrix. This approach starts calculations from
 	the incident wave."""
 	
-	Elrev = []  #reversed order field amplitudes
-	Es = np.array([As_, Bs_])
-	Elrev.append(Es)
-	i = 1
-	W = 3
-	L = len(matrix_arr)
+	field_rev = []  #reversed order field amplitudes
+	E0 = np.array([A0_, B0_])
 
-	while W*i < L:
-		slice = matrix_arr[L-W*i:]
-		M = np.linalg.multi_dot(slice)
-		amp = np.dot(M, Es)
-		Elrev.append(amp)
-		i+=1
+	i = len(matrix_list) - 1
+	slice = 3  # slice first three matrices from list after each dot product
+	M = matrix_product(matrix_list)
+	E_s = np.dot(M, E0)
+	field_rev.append(E_s)
+	matrix_list.pop(0)
+	
+	while i != 1:
+		M_i = matrix_product(matrix_list)
+		E_i = np.dot(M_i, E0)
+		field_rev.append(E_i)
+		matrix_list = matrix_list[slice:]
+		i -= slice
+	if len(matrix_list) == 1:
+		E_i = np.dot(matrix_list[0], E0)
+		field_rev.append(E_i)
 
-	first_layer = 2
-	M = np.linalg.multi_dot(matrix_arr[:first_layer])
-	amp = np.dot(M, Es)
-	Elrev.append(amp)
+	field = list(reversed(field_rev))
 
-	# Put amplitudes in order from first to last layer.
-	El = []
-	for E in reversed(Elrev):  
-		El.append(E)
-	return El
+	return field
 	
 
+def output_TRA(wavelens, trans, refl, absor):
+	"""Writes transmission, reflectance, abosorbance data to csv file"""
+	
+	print("")
+	output = os.path.abspath(args.output)
+	with open (output, 'w') as out_file:
+	#TODO: Also output wavenumbers
+		filewriter = csv.writer(out_file, delimiter=',')
+		header = ['Wavelength (um)', 
+				  'Transmittance (%)', 
+				  'Reflectance (%)', 
+				  'Absorptance (%)']
+		filewriter.writerow(header)
+		i = 0
+		while i < len(trans):
+			row = [wavelens[i], trans[i], refl[i], absor[i]]
+			filewriter.writerow(row)
+			i+=1
+	print("Wrote results to {}".format(output))
+	return 0
+	
+	
+def output_field_profile(wavelens, layers, E_amps):
+	"""Take list of wavelengths"""
+	k = 0.2  # test wavenumber, 2000 cm^-1
+	a = E_amps[100]
+	layer_coords = []
+	for idx, layer in enumerate(layers):
+		if idx == 0:
+			layer_coords.append(0)
+		else:
+			d = int(layer.thickness * 10**9)
+			x_i = layer_coords[idx-1] + d
+			layer_coords.append(x_i)
 
-# ===== Fresnel equation functions below not used so much for now ===== #
+	
+	# Generate x-coordinates
+	num_pts = 200
+	MAX = layer_coords[-1] + 0.1*layer_coords[-1]
+	LAST = len(layer_coords) - 1
+	x = []
+	profile = []
+	for idx, l in enumerate(layer_coords):
+		if idx == LAST:
+# 			print(idx, "last one")
+			domain = np.linspace(l, MAX, num_pts)
+			x.append(domain)
+		else:
+# 			print(idx, 'first', l)
+# 			print('next', layer_coords[idx+1])
+
+			domain = np.linspace(l, layer_coords[idx+1], num_pts)
+			x.append(domain)
+
+	fig, ax = plt.subplots()
+	
+	# Generate E-field profile
+	for idx, x_i in enumerate(x):
+		f = a[idx] * np.exp(1j * k * x_i)
+# 		profile.append(f)
+		ax.plot(x_i, f, label='{}'.format(layers[idx].material))
+
+	ax.legend()
+
+	ax.axvline(x=layer_coords[1])
+	ax.axvline(x=layer_coords[2])
+	ax.axvline(x=layer_coords[3])
+
+# 	plt.show()
+	
+	return 0
+	
+	
+
+# ===== Fresnel equation functions below not used for now ===== #
 def fresnel(n1, n2, k1x, k2x):
 	"""Inputs:  Angular frequency of incident light
 			    refractive indices for two media
@@ -438,9 +513,6 @@ def main_loop():
 	layers = get_layers_from_yaml(device)  # a list of layer objects
 	em_wave = device['wave']
 	inc_ang = em_wave['theta_in']
-	#FIXME: Do we really need to explicitly state bounding material?
-	bound1 = set_bound(device, 'bound1')
-	bound2 = set_bound(device, 'bound2')
 	
 	for layer in layers:
 		# interpolating from downloaded index data, making new data points
@@ -451,7 +523,7 @@ def main_loop():
 	# We should separate this from the Layer class.
 	# This should be stored as an array somewhere.
 	wavelens = layers[0].wavelength  # still in units of um
-	all_of_the_lights = []
+
 	
 	#TODO: Organize outputs better cuz there'll probably be a lot of them.
 	# Outputs
@@ -463,35 +535,27 @@ def main_loop():
 	
 # 	alpha = attenuation_coefficient(efield, k)
 
-	for lm in wavelens:
-		lmbda = Light(lm)
-		all_of_the_lights.append(lmbda)
+	for lmbda in wavelens:
+
 		# M only uses the wavelength -- doesn't need Light class
-		M = build_matrix_list(lmbda, inc_ang, bound1, bound2, layers)
-# 		lmbda.matrices = M
+		M = build_matrix_list(lmbda, inc_ang, layers)
+
 		TM = np.linalg.multi_dot(M)
 		trns = transmittance(TM).real
 		refl = reflectance(TM).real
+# 		field = field_amp(M, device["wave"]['A0'], device['wave']['B0'])
+# 		logging.info('Only using forward-propagating field values')
+# 		field = [f[0] for f in field]
+# 			
+# 		E_amps.append(field)
 		T.append(trns)
 		R.append(refl)
 		abso = 1 - trns - refl
 		A.append(abso)
 
-	print("")
-	output = os.path.abspath(args.output)
-	with open (output, 'w') as out_file:
-		filewriter = csv.writer(out_file, delimiter=',')
-		header = ['Wavelength (um)', 
-				  'Transmittance (%)', 
-				  'Reflectance (%)', 
-				  'Absorptance (%)']
-		filewriter.writerow(header)
-		i = 0
-		while i < len(T):
-			row = [wavelens[i], T[i], R[i], A[i]]
-			filewriter.writerow(row)
-			i+=1
-	print("Wrote results to {}".format(output))
+	#Write everything to a csv file
+	output_TRA(wavelens, T, R, A)
+# 	output_field_profile(wavelens, layers, E_amps)
 
 
 def main():
@@ -525,7 +589,7 @@ if __name__ == '__main__':
 	parser.add_argument("output", help=out_help)
 	parser.add_argument('-p', '--pwave', help=pwave_help, action='store_true')
 	parser.add_argument('-s', '--swave', help=swave_help, action='store_true')
-	parser.add_argument('-T', '--angles', action='store_true')
+# 	parser.add_argument('-T', '--angles', action='store_true')
 	debug_mode = parser.parse_args().debug
 	if debug_mode:
 		print("Debug mode\n")
