@@ -95,7 +95,3 @@ When in doubt, run `python transfer_matrix.py -h` to see the types and order of 
 ## Plotting results
 
 The output is a .csv file, so the user can use any plotting and analysis software. Basic plotting is provided via the included `plotting.py`. It will take the output file and generate a simple transmittance, reflectance, and absorbance plot. This may be made more sophisticated in the future.
-
-## Things that don't work yet
-
-The keen eye will notice a function that plots the field profile. This does not work yet; the field is discontinuous between boundaries when it should be continuous. I will fix it later.
