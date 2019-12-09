@@ -6,21 +6,21 @@ wave:     # properties of initial em wave
     theta_in: 0. # incident angle of em wave
     A0: 0   # magnitude of left-progagating wave
     B0: 1   # magnitude of right-propagating wave
-bound1:
-    material: Air
-    thickness: 0.
-    wavelength: [0.3]
-    index: 1.0
-    extinction: 0.0
-bound2:
-    material: Air
-    thickness: 0.0
-    wavelength: [0.3]
-    index: 1.0
-    extinction: 0.0
 layers:
     layer0: 
+        material: Air
+        thickness: 0
+        wavelength: None
+        index: 1.0
+        extinction: 0.0
+    layer1: 
         material: Au
-        thickness: 35
-        param_path: "/Users/garrek/projects/pistachio/data/filmetrics/Au_index.txt"
+        thickness: 100
+        param_path: "/Users/garrek/projects/pistachio/data/filmetrics/Au.txt"
+    layer2: 
+        material: Air
+        thickness: 0
+        wavelength: None
+        index: 1.0
+        extinction: 0.0
 

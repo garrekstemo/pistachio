@@ -21,35 +21,9 @@ from ruamel_yaml import YAML
 import pdb
 
 
-
 c = sc.c  # speed of light
 h = sc.h  # planck's constant
 yaml = YAML()
-
-
-class Light:
-
-	def __init__(self, wavelength):
-
-		self.wavelength = wavelength
-		self.amplitude = []
-		self.trans_amplitude = np.array([1, 0])
-		self.matrices = []
-		
-	def omega(self):
-		return 2*np.pi*c / self.wavelength
-
-	def energy_J(self):
-		return h*c / self.wavelength
-	
-	def energy_ev(self):
-		return h*c / self.wavelength / sc.eV
-		
-	def wavenumber(self):
-		return 2*np.pi / self.wavelength
-		
-	def frequency(self):
-		return c / self.wavelength
 
 
 class Layer:
@@ -64,7 +38,6 @@ class Layer:
 		self.index = []  # array of refractive indices
 		self.extinct = []  # array of extinction coefficients
 		self.waves = {}  # Needs to be curly braces
-		self.complex = complex
 		
 	def __repr__(self):
 		a = "{} \n".format(self.material)
@@ -73,11 +46,6 @@ class Layer:
 		d = "refractive index: {}\n".format(self.index)
 		e = "extinction coefficient: {}\n".format(self.extinct)
 		return a+b+c+d+e
-				
-
-	def complex_index(self, n, K):
-		"""NOT IMPLEMENTED"""
-		self.complex = n + 1j*K
 
 
 	def get_data_from_csv(self, index_path):
@@ -97,7 +65,8 @@ class Layer:
 					self.extinct.append(0.)
 				
 	def get_data_from_txt(self, index_path):
-		"""Used for filmetrics.com data"""
+		"""Used for filmetrics.com data.
+			This site uses nm for wavelength units."""
 		with open(index_path, 'r') as params:
 			header = next(params)
 			unit = 1
@@ -109,6 +78,10 @@ class Layer:
 				wl = float(line[0])
 				if unit:
 					wl = wl* unit
+					print(wl)
+				else:
+					print("Not in nm. Check units for refractive index file.")
+					sys.exit()
 				n = float(line[1])
 				
 				self.wavelength.append(wl)
@@ -191,44 +164,20 @@ def get_dict_from_yaml(yaml_file):
 
 	with open(yaml_file, 'r') as yml:
 		device = yaml.load(yml)
-	return device
-	
-def set_bound(device_, bound_name):
-	"""Takes device dictionary and name of bounding medium as a string"""
-	
-	bound_msg = "Boundary material name is not a string."
-	assert isinstance(bound_name, str), bound_msg
-	
-	num_points = device_['num_points']
-	MIN_WL = device_['min_wl']
-	MAX_WL = device_['max_wl']
-	dname = device_[bound_name]['material']
-	bound = Layer(dname, num_points, MIN_WL, MAX_WL)
-	param_path = 'param_path'
-	
-	if param_path in device_[bound_name]:
-		params = device_[bound_name][param_path]
-		bound.get_data_from_csv(params)
-		bound.make_new_data_points()
-	else:
-		bound.index = device_[bound_name]['index']
-		bound.extinct = device_[bound_name]['extinction']
-# 		bound.make_new_data_points()
-	
-	return bound
-		
+	return device		
     
 def get_layers_from_yaml(device_dict):
 	"""Takes device dictionary and outputs all layer objects as a list."""
-	val1 = 'layers'
-	val2 = 'num_points'
+
+	val1 = 'num_points'
+	val2 = 'layers'
 	val3 = 'min_wl'
 	val4 = 'max_wl'
-	
-	num_layers = len(device_dict[val1])
+
+	num_points = int(device_dict[val1])	
+	num_layers = len(device_dict[val2])
 	print("Number of layers:", num_layers)
-	num_points = int(device_dict[val2])
-	
+
 	# Minimum and maximum desired wavelengths
 	min_wl = float(device_dict[val3])
 	max_wl = float(device_dict[val4])
@@ -336,14 +285,16 @@ def build_matrix_list(wavelength, theta, layers):
 	Makes a wavelength object and bounds. Outputs a list of matrices that will
 	make the transfer matrix for that wavelength of light propagating 
 	through the device."""
-	
+	wavelength = wavelength
 	compute_wl = wavelength * 10**(-6)
 	omega = 2 * np.pi * sc.c / compute_wl
 	matrices = []
 
 	for idx, layer in enumerate(layers):
+# 		print(layer.waves)
 
 		n = layer.waves[wavelength]
+
 		kx = layer.wavenumber(n, omega, theta)[0]
 		D = layer.dynamical_matrix(n, theta)
 		Dinv = np.linalg.inv(D)
@@ -356,9 +307,9 @@ def build_matrix_list(wavelength, theta, layers):
 			matrices.append(D)
 
 		else:
-			matrices.append(Dinv)
-			matrices.append(P)
 			matrices.append(D)
+			matrices.append(P)
+			matrices.append(Dinv)
 			
 	return matrices
 
@@ -516,8 +467,9 @@ def main_loop():
 	
 	for layer in layers:
 		# interpolating from downloaded index data, making new data points
-		#TODO: Why am I doing this?
 		print(str(layer.material) + ", d=" + str(int(layer.thickness*10**9)) + "nm")
+		
+		#TODO: UNCOMMENT THIS LATER IF YOU END UP NEEDING IT
 		layer.make_new_data_points()
 
 	# We should separate this from the Layer class.
@@ -546,7 +498,7 @@ def main_loop():
 # 		field = field_amp(M, device["wave"]['A0'], device['wave']['B0'])
 # 		logging.info('Only using forward-propagating field values')
 # 		field = [f[0] for f in field]
-# 			
+# # 			
 # 		E_amps.append(field)
 		T.append(trns)
 		R.append(refl)
