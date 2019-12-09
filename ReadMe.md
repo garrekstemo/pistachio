@@ -3,7 +3,7 @@
 Author: Garrek Stemo\
 Affiliation: Nara Institute of Science and Technology\
 Date Created: July 5, 2019\
-Updated: December 5, 2019
+Updated: December 9, 2019
 
 Pistachio is a suite of software for analysis of strongly coupled light-matter phenomenon. 
 It includes a transfer matrix program based on Optical Waves in Layered Media by Pochi Yeh 
@@ -95,3 +95,7 @@ When in doubt, run `python transfer_matrix.py -h` to see the types and order of 
 ## Plotting results
 
 The output is a .csv file, so the user can use any plotting and analysis software. Basic plotting is provided via the included `plotting.py`. It will take the output file and generate a simple transmittance, reflectance, and absorbance plot. This may be made more sophisticated in the future.
+
+## Things that don't work yet
+
+The keen eye will notice that there is a field profile function in the transfer matrix file. This does not work yet; the field is discontinuous at medium boundaries when it should be continuous. I'll fix this later.

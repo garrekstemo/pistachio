@@ -3,7 +3,10 @@
 
 # Ignore directories with custom files
 config_files
-data/out
 
 # Ignore directories and files in progress
 swift_TMM
+
+# Ignore output files
+data/out
+transfer_matrix.log
