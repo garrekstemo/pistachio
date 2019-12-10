@@ -1,5 +1,6 @@
 # Ignore Mac system files
 .DS_Store
+.pyc
 
 # Ignore directories with custom files
 config_files/*

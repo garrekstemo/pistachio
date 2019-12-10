@@ -18,6 +18,7 @@ import numpy as np
 from scipy import optimize
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
+import pdb
 
 
 class Lorentzian:
@@ -106,7 +107,7 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	"""Fit the curve with data and Lorentzian class"""
 
 	fitting_func = lorz1.lor_func(wavenum)
-	
+
 	amp1 = lorz1.amplitude
 	x01 = lorz1.x0
 	g1 = lorz1.gamma
@@ -120,7 +121,7 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	peak2_err = []
 
 	lor_fit = []
-
+	
 	try:
 		popt, pconv = optimize.curve_fit(lor_2peak, wavenum, intensity,
 										 p0=[amp1, x01, g1, y01, amp2, x02, g2, y02])
@@ -132,7 +133,7 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 		err = np.sqrt(np.diag(pconv))
 		peak1_err = err[0:4]
 		peak2_err = err[4:8]
-		
+
 		lor_fit = lor_2peak(wavenum, *peak1_args, *peak2_args)
 		
 	except RuntimeError:
@@ -158,7 +159,7 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 # 	print("Amplitude = ", amp2[0], u'\u00b1', amp2[1])
 # 	print("Center = ", center2[0], u'\u00b1', center2[1])
 # 	print('sigma = ', gamma2[0], u'\u00b1', gamma2[1])
-	
+
 	return lor_fit, lorz1, lorz2
 
 
@@ -190,7 +191,7 @@ def angle_data():
 				
 			if 'Abs' in spectrum:
 				# Get absorbance data if the file exists
-				 abs_k, abs_I, abs_lor = absorbance_fitting(spec_file)
+				abs_k, abs_I, abs_lor = absorbance_fitting(spec_file)
 	degree.sort()
 
 	up_bound = float(args.upperbound)
@@ -214,12 +215,10 @@ def angle_data():
 		
 	for d in degree:
 		spectrum_file = d[1]
-# 		print('='*40)
-# 		print(d[0], 'degrees')
-# 		print(spectrum_file)
 		
 		wavenum, intensity = get_data(spectrum_file)
 		wavenum, intensity = truncate_data(wavenum, intensity, low_bound, up_bound)
+		print("TEST", wavenum)
 
 		fit, lor_upper, lor_lower = polariton_fitting(wavenum, intensity, lorz1, lorz2)
 		lorz1 = lor_lower
@@ -231,35 +230,37 @@ def angle_data():
 		# For now, just using the x0 position of the peak
 		upper_pol.append(lor_upper.x0)
 		lower_pol.append(lor_lower.x0)
+	print(len(wavenumbers))
+	return wavenumbers, intensities
 	
 # 	fig0, (ax, axf) = plt.subplots(2)
-	fig0, ax = plt.subplots()
+# 	fig0, ax = plt.subplots()
 	
-	for i in range(len(wavenumbers)):
-		ax.plot(wavenumbers[i], intensities[i])
-		ax.set_xlim([int(args.upperbound), int(args.lowerbound)])
-		ax.set_ylim(0., 0.9)
+# 	for i in range(len(wavenumbers)):
+# 		ax.plot(wavenumbers[i], intensities[i])
+# 		ax.set_xlim([int(args.upperbound), int(args.lowerbound)])
+# 		ax.set_ylim(0., 0.9)
 
 # 		axf.plot(wavenumbers[i], lor_fits[i])
 # 		axf.set_xlim([int(args.upperbound), int(args.lowerbound)])
 # 		axf.set_ylim(0., 0.9)
 
 	
-	ax.set_ylabel('Transmission (%)', fontsize=12)
-	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=12)
+# 	ax.set_ylabel('Transmission (%)', fontsize=12)
+# 	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=12)
 # 	axf.set_ylabel('Transmission (%)', fontsize=12)
-	ax.set_title('Angle-tuned measurements for Neat DPPA', fontsize=14)
+# 	ax.set_title('Angle-tuned measurements for Neat DPPA', fontsize=14)
 	
-	fig1, ax = plt.subplots()
+# 	fig1, ax = plt.subplots()
 # 	ax.scatter(angles, upper_pol, s=10, c='black')
 # 	ax.scatter(angles, lower_pol, s=10, c='black')
-	ax.set_xticks(angles)
+# 	ax.set_xticks(angles)
 # 	ax.set_ylim(0., 0.8)
-	ax.set_ylim(2060, 2160)
+# 	ax.set_ylim(2060, 2160)
 	
-	abs_pos = abs_lor.x0
-	abs_y = np.zeros(len(angles))
-	abs_y = [abs_pos for i in abs_y]
+# 	abs_pos = abs_lor.x0
+# 	abs_y = np.zeros(len(angles))
+# 	abs_y = [abs_pos for i in abs_y]
 # 	ax.plot(angles, abs_y, 
 # 			linestyle='--', c='black', label='N=N=N stretch mode')
 	
@@ -267,9 +268,9 @@ def angle_data():
 # 	ax.plot(cav_angles, cav_modes, 
 # 			linestyle='--', c='blue')
 	
-	ax.set_title('Angle-tuned empty cavity', fontsize=14)
-	ax.set_xlabel('Angle (degrees)', fontsize=12)
-	ax.set_ylabel(r'Wavenumber (cm$^{-1}$)', fontsize=12)
+# 	ax.set_title('Angle-tuned empty cavity', fontsize=14)
+# 	ax.set_xlabel('Angle (degrees)', fontsize=12)
+# 	ax.set_ylabel(r'Wavenumber (cm$^{-1}$)', fontsize=12)
 # 	ax.legend()
 
 	# Save figures as PDFs	
@@ -407,6 +408,23 @@ def plot_absorbance(k, I, lor):
 	
 	plt.show()
 
+def write_to_file(wavenum, intensity):
+	"""Takes wavenumber list and intensity list.
+		Writes data to csv file."""
+	
+	output = os.path.abspath(args.output)
+	with open (output, 'w') as out_file:
+		filewriter= csv.writer(out_file, delimiter=',')
+		header = ['Wavenumber (cm-1)', 'Intensity (arb)']
+		filewriter.writerow(header)
+		print(len(wavenum))
+		i = 0
+		while i < len(wavenum):
+			row = [wavenum[i], intensity[i]]
+			filewriter.writerow(row)
+			i+=1
+	print('Wrote results to {}'.format(output))
+	
 
 def get_params(file_name):
 	"""Gets spectrum parameters from file name"""
@@ -426,7 +444,9 @@ def main():
 		
 	elif args.angleres:
 		print('Fitting angle-resolved data')
-		angle_data()
+		wn, inten = angle_data()
+		print(len(wn))
+		write_to_file(wn, inten)
 		
 	else:
 		print('No input data found')
@@ -438,6 +458,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	
 	spectrum_help = "csv file containing spectral information."
+	output_help = "path and name for output data file (must be .csv)"
 	cavity_help = "csv file containing angle-tuned cavity mode data."
 	cav_cen_help = "Initial guess for x position of mode center."
 	spec_dir_help = "Directory of angle-resolved polariton spectral data."
@@ -448,6 +469,7 @@ if __name__ == '__main__':
 	ubound_help = "Upper x-axis bound for fitting."
 	
 	parser.add_argument('spectral_data', help=spectrum_help)
+	parser.add_argument('output', help=output_help)
 	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
 	parser.add_argument('-CC', '--cav_center', help=cav_cen_help)
 	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)

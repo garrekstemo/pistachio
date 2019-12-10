@@ -426,7 +426,6 @@ def output_field_profile(wavelens, layers, E_amps):
 	
 	return 0
 
-
 # ===== Fresnel equation functions below not used for now ===== #
 def fresnel(n1, n2, k1x, k2x):
 	"""Inputs:  Angular frequency of incident light
@@ -523,7 +522,7 @@ def main():
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	device_help = "path for a yaml file from config_files describing a device"
-	out_help = "path and name for output data file (must be .csv)"
+	output_help = "path and name for output data file (must be .csv)"
 	pwave_help = "boolean, calculate for p-wave"
 	swave_help = "boolean, calculate for s-wave"
 	
@@ -532,7 +531,7 @@ if __name__ == '__main__':
 						help="doesn't do anything right now")
 	parser.add_argument("device",
 						help=device_help)
-	parser.add_argument("output", help=out_help)
+	parser.add_argument("output", help=output_help)
 	parser.add_argument('-p', '--pwave', help=pwave_help, action='store_true')
 	parser.add_argument('-s', '--swave', help=swave_help, action='store_true')
 # 	parser.add_argument('-T', '--angles', action='store_true')
