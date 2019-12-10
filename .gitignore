@@ -2,7 +2,7 @@
 .DS_Store
 
 # Ignore directories with custom files
-config_files
+config_files/*
 
 # Ignore directories and files in progress
 swift_TMM

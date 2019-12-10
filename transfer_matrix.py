@@ -21,11 +21,9 @@ from ruamel_yaml import YAML
 import pdb
 
 
-
 c = sc.c  # speed of light
 h = sc.h  # planck's constant
 yaml = YAML()
-
 
 
 class Layer:
@@ -40,7 +38,6 @@ class Layer:
 		self.index = []  # array of refractive indices
 		self.extinct = []  # array of extinction coefficients
 		self.waves = {}  # Needs to be curly braces
-		self.complex = complex
 		
 	def __repr__(self):
 		a = "{} \n".format(self.material)
@@ -49,12 +46,6 @@ class Layer:
 		d = "refractive index: {}\n".format(self.index)
 		e = "extinction coefficient: {}\n".format(self.extinct)
 		return a+b+c+d+e
-				
-
-	def complex_index(self, n, K):
-		"""NOT IMPLEMENTED"""
-		self.complex = n + 1j*K
-
 
 	def get_data_from_csv(self, index_path):
 		"""Used for refractiveindex.info data. This site uses um for wavelength units."""
@@ -159,7 +150,6 @@ class Layer:
 			print("")
 			print("Error: No wave polarization passed in. See --help for more info. Exiting....")
 			sys.exit()
-		
 
 
 def get_dict_from_yaml(yaml_file):
@@ -168,32 +158,7 @@ def get_dict_from_yaml(yaml_file):
 	with open(yaml_file, 'r') as yml:
 		device = yaml.load(yml)
 	return device
-	
-def set_bound(device_, bound_name):
-	"""Takes device dictionary and name of bounding medium as a string"""
-	
-	bound_msg = "Boundary material name is not a string."
-	assert isinstance(bound_name, str), bound_msg
-	
-	num_points = device_['num_points']
-	MIN_WL = device_['min_wl']
-	MAX_WL = device_['max_wl']
-	dname = device_[bound_name]['material']
-	bound = Layer(dname, num_points, MIN_WL, MAX_WL)
-	param_path = 'param_path'
-	
-	if param_path in device_[bound_name]:
-		params = device_[bound_name][param_path]
-		bound.get_data_from_csv(params)
-		bound.make_new_data_points()
-	else:
-		bound.index = device_[bound_name]['index']
-		bound.extinct = device_[bound_name]['extinction']
-# 		bound.make_new_data_points()
-	
-	return bound
-		
-    
+
 def get_layers_from_yaml(device_dict):
 	"""Takes device dictionary and outputs all layer objects as a list."""
 	val1 = 'layers'
@@ -415,9 +380,8 @@ def output_field_profile(wavelens, layers, E_amps):
 			x_i = layer_coords[idx-1] + d
 			layer_coords.append(x_i)
 
-	
 	# Generate x-coordinates
-	num_pts = 200
+	num_pts = 10000
 	MAX = layer_coords[-1] + 0.1*layer_coords[-1]
 	LAST = len(layer_coords) - 1
 	x = []
@@ -428,9 +392,6 @@ def output_field_profile(wavelens, layers, E_amps):
 			domain = np.linspace(l, MAX, num_pts)
 			x.append(domain)
 		else:
-# 			print(idx, 'first', l)
-# 			print('next', layer_coords[idx+1])
-
 			domain = np.linspace(l, layer_coords[idx+1], num_pts)
 			x.append(domain)
 
@@ -439,7 +400,7 @@ def output_field_profile(wavelens, layers, E_amps):
 	# Generate E-field profile
 	for idx, x_i in enumerate(x):
 		f = a[idx] * np.exp(1j * k * x_i)
-# 		profile.append(f)
+		profile.append(f)
 		ax.plot(x_i, f, label='{}'.format(layers[idx].material))
 
 	ax.legend()
@@ -448,11 +409,23 @@ def output_field_profile(wavelens, layers, E_amps):
 	ax.axvline(x=layer_coords[2])
 	ax.axvline(x=layer_coords[3])
 
-# 	plt.show()
+
+	field_output = '/Users/garrek/projects/pistachio/data/out/field_test.csv'
+	with open (field_output, 'w') as out_file:
+		filewriter = csv.writer(out_file, delimiter=',')
+		header = ['x', 'field']
+		filewriter.writerow(header)
+		i = 0
+		while i < len(x):
+			row = [x[i], profile[i]]
+			filewriter.writerow(row)
+			i+=1
+	print("Wrote field output to {}".format(field_output))		
+
+	plt.show()
 	
 	return 0
-	
-	
+
 
 # ===== Fresnel equation functions below not used for now ===== #
 def fresnel(n1, n2, k1x, k2x):
@@ -517,11 +490,11 @@ def main_loop():
 		TM = np.linalg.multi_dot(M)
 		trns = transmittance(TM).real
 		refl = reflectance(TM).real
-# 		field = field_amp(M, device["wave"]['A0'], device['wave']['B0'])
-# 		logging.info('Only using forward-propagating field values')
-# 		field = [f[0] for f in field]
-# 			
-# 		E_amps.append(field)
+		field = field_amp(M, device["wave"]['A0'], device['wave']['B0'])
+		logging.info('Only using forward-propagating field values')
+		field = [f[0] for f in field]
+			
+		E_amps.append(field)
 		T.append(trns)
 		R.append(refl)
 		abso = 1 - trns - refl
@@ -529,7 +502,7 @@ def main_loop():
 
 	#Write everything to a csv file
 	output_TRA(wavelens, T, R, A)
-# 	output_field_profile(wavelens, layers, E_amps)
+	output_field_profile(wavelens, layers, E_amps)
 
 
 def main():
@@ -545,7 +518,6 @@ def main():
 	logging.info('elapsed time: {} seconds'.format(elapsed_time))
 	
 	print("Simulation time: {} seconds".format(elapsed_time))
-
 
 
 if __name__ == '__main__':
@@ -573,6 +545,4 @@ if __name__ == '__main__':
 	output_message = "Output file must be .csv"
 	assert args.output[-4:] == ".csv", output_message
 		
-
-
 	main()
