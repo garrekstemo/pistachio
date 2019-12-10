@@ -27,30 +27,6 @@ h = sc.h  # planck's constant
 yaml = YAML()
 
 
-class Light:
-
-	def __init__(self, wavelength):
-
-		self.wavelength = wavelength
-		self.amplitude = []
-		self.trans_amplitude = np.array([1, 0])
-		self.matrices = []
-		
-	def omega(self):
-		return 2*np.pi*c / self.wavelength
-
-	def energy_J(self):
-		return h*c / self.wavelength
-	
-	def energy_ev(self):
-		return h*c / self.wavelength / sc.eV
-		
-	def wavenumber(self):
-		return 2*np.pi / self.wavelength
-		
-	def frequency(self):
-		return c / self.wavelength
-
 
 class Layer:
 
@@ -537,9 +513,7 @@ def main_loop():
 
 	for lmbda in wavelens:
 
-		# M only uses the wavelength -- doesn't need Light class
 		M = build_matrix_list(lmbda, inc_ang, layers)
-
 		TM = np.linalg.multi_dot(M)
 		trns = transmittance(TM).real
 		refl = reflectance(TM).real
