@@ -48,7 +48,9 @@ class Lorentzian:
 		"""Lorentzian function for numpy array, x"""
 		lor = self.y0 + self.amplitude * self.gamma**2 / ((x - self.x0)**2 + self.gamma**2)
 		return lor
-	
+
+
+# ====== Get and write data ====== #
 
 def get_data(spectral_data):
 	"""Retrieve csv spectral data and store in array."""
@@ -57,7 +59,8 @@ def get_data(spectral_data):
 	I = []
 	with open(spectral_data, 'r', errors='ignore') as spectrum:
 		csvreader = csv.reader(spectrum)
-		for s in range(19):
+		num_header_rows = 19
+		for s in range(num_header_rows):
 			next(csvreader, None)
 		for row in csvreader:
 			if row:
@@ -69,7 +72,41 @@ def get_data(spectral_data):
 				break
 				
 	return np.array(k), np.array(I)
+	
+def get_angle_data_from_dir(directory):
+	"""Extracts angle-resolved and absorbance data from each file in the supplied directory"""
 
+	abs_k = [] 			 # absorbance wavenumbers
+	abs_I = []  		 # absorbance intensities
+	angle_data = []  # List with structure [[angle, [wavenumbers, intensities]], [...], ...]
+
+	deg_str = 'deg'
+	abs_str = 'Abs'
+	
+	for spectrum in os.listdir(directory):
+		if spectrum.endswith('.csv'):
+			spec_file = str(directory) + '/' + str(spectrum)
+			if deg_str in spectrum:
+				# Get the angle of the measurement from file string
+				deg_s = spectrum.find(deg_str) + len(deg_str)
+				deg_e = spectrum.find('_', deg_s)
+				deg = int(spectrum[deg_s:deg_e])
+				wavenum, intensity = get_data(spec_file)
+				angle_data.append([deg, wavenum, intensity])
+				
+			# Get absorbance data if the file exists (it should always exist)
+			if abs_str in spectrum:
+				abs_k, abs_I = get_data(spec_file)
+
+	absorbance_data = [abs_k, abs_I]
+	angle_data.sort()
+	
+	return angle_data, absorbance_data
+	
+def get_params(file_name):
+	"""Gets spectrum parameters from file name"""
+	#TODO: Need to get parameters from file to prevent overwriting data	
+	
 def truncate_data(xdata, ydata, bound1, bound2):
 	"""Truncate data to isolate desired peaks for fitting"""
 	
@@ -87,6 +124,70 @@ def truncate_data(xdata, ydata, bound1, bound2):
 	
 	return xdata[lower_pt:upper_pt], ydata[lower_pt:upper_pt]
 	
+def write_angle_spec_to_file(angle_data_list):
+	"""Takes angles list, wavenumber list, and intensity list.
+		Writes angle-resolved data to csv file with 
+		wavenumber in leftmost column (x-axis), and intensities
+		for each degree (y-axes)."""
+	#TODO: I guess this isn't necessary since raw data exists. More valuable to make plots.
+	angles = []
+	wavenumbers = angle_data_list[0][1]
+	num_wavenums = len(wavenumbers)
+	
+	angle_res_file = 'angle-resolved_spectra.csv'
+	output = os.path.join(os.path.abspath(args.output), angle_res_file)
+	with open(output, 'w') as out_file:
+		filewriter= csv.writer(out_file, delimiter=',')
+		header = ['Wavenumber (cm-1)']
+		for a in angle_data_list:
+			angle = a[0]
+			header.append('Int deg' + str(angle) + ' (arb)')
+		filewriter.writerow(header)
+
+		i = 0
+		# BIG ASSUMPTION: all data sets have same number of wavenumbers with the same values
+		while i < num_wavenums:
+			# Cycle through data points, first set up wavenumbers
+			row = [wavenumbers[i]]
+			
+			for item in angle_data_list:
+				# Cycle through data point for each degree, make a row
+				row.append(item[2][i])
+				
+			filewriter.writerow(row)
+			i+=1
+			
+	print('Wrote angle-resolved spectra results to {}'.format(output))
+	
+	return 0
+
+def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav):
+	"""Takes angles and energies (wavenumbers) for upper and lower
+	   polaritons, vibrational energy, calculated cavity mode 
+	   and writes all that data to a csv file.
+	   REMEMBER: change plot_dispersion in plots.py if output file format changes."""
+
+	dispersion_file = 'anti_crossing.csv'
+	output = os.path.join(os.path.abspath(args.output), dispersion_file)
+	with open(output, 'w') as f:
+		filewriter = csv.writer(f, delimiter=',')
+		header = ['Angle (deg)', 
+				  'UP Wavenumber (cm-1)', 'LP Wavenumber (cm-1)',
+				  'Vibration mode (cm-1)', 'Cavity mode (cm-1)']
+		filewriter.writerow(header)
+		
+		i = 0
+		while i < len(angles):
+			row = [angles[i], E_up[i], E_lp[i], E_vib, E_cav[i]]
+			filewriter.writerow(row)
+			i+=1
+
+	print('Wrote dispersion results to {}'.format(output))
+	
+	return 0
+
+
+# ====== Fitting Functions ====== #
 
 def lor_1peak(x, A, x0, gamma, y0):
 	"""Lorentzian fitting function for a single peak.
@@ -114,6 +215,29 @@ def coupled_energies(Ee, Ec, V, Ep):
 	
 	return f
 	
+	
+# ====== Fitting Procedures ====== #
+
+def absorbance_fitting(wavenum, intensity):
+	"""Returns Lorentzian function class with fitted parameters for absorbance."""
+	
+	up_bound = float(args.upperbound)
+	low_bound = float(args.lowerbound)
+	k, I = truncate_data(wavenum, intensity, low_bound, up_bound)
+	lor = Lorentzian()
+	center = low_bound + 1/2 * (up_bound - low_bound)
+	lor.set_x0(center)
+
+	popt, pconv = optimize.curve_fit(lor_1peak, k, I,
+								 p0=[lor.amplitude, lor.x0, lor.gamma, lor.y0])
+	
+	lor.amplitude = popt[0]
+	lor.x0 = popt[1]
+	lor.gamma = popt[2]
+	lor.y0 = popt[3]
+	lor.lor_func(k)
+
+	return lor
 
 def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	"""Fit the curve with data and Lorentzian class"""
@@ -175,54 +299,10 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	return lor_fit, lorz1, lorz2
 
 
-def plot_polariton(x_, y_, fit_func):
-	"""Makes a single plot for polariton data"""
-
-	fig, ax = plt.subplots()
-	ax.plot(x_, y_)
-	ax.plot(x_, fit_func)
-
-
-def get_angle_data_from_dir(directory):
-	"""Extracts angle-resolved and absorbance data from each file in the supplied directory"""
-	#TODO: Clean out unnecessary things here
-	degree_files = []    # degree paired with spectrum file
-	abs_k = [] 			 # absorbance wavenumbers
-	abs_I = []  		 # absorbance intensities
-	wavenumbers = []
-	intensities = []
-	angle_data = []  # List with structure [[angle, [wavenumbers, intensities]], [...], ...]
-
-	deg_str = 'deg'
-	abs_str = 'Abs'
-	
-	for spectrum in os.listdir(directory):
-		if spectrum.endswith('.csv'):
-			spec_file = str(directory) + '/' + str(spectrum)
-			if deg_str in spectrum:
-				# Get the angle of the measurement from file string
-				deg_s = spectrum.find(deg_str) + len(deg_str)
-				deg_e = spectrum.find('_', deg_s)
-				deg = int(spectrum[deg_s:deg_e])
-				degree_files.append(spec_file)
-				wavenum, intensity = get_data(spec_file)
-				angle_data.append([deg, wavenum, intensity])
-				
-			# Get absorbance data if the file exists				
-			if abs_str in spectrum:
-
-				abs_k, abs_I = get_data(spec_file)
-
-	absorbance_data = [abs_k, abs_I]
-	angle_data.sort()
-	
-	return angle_data, absorbance_data
-
-
-def anticrossing(angle_data, absor_data):
-	"""Takes upper, lower polariton fitted data, and absorbance data.
-	   Writes data to csv.
-	   Returns dispersion data for later fitting."""
+def lorentzian_parsing(angle_data, absor_data):
+	"""Takes raw angle-resolved spectra, absorbance spectrum.
+	   Returns lists of angles, upper/lower polariton peak positions (cm-1),
+	   absorbance peak position. This info is used for dispersion curves later."""
 
 	up_bound = float(args.upperbound)
 	low_bound = float(args.lowerbound)
@@ -270,43 +350,7 @@ def anticrossing(angle_data, absor_data):
 		lower_pol.append(lor_lower.x0)
 
 	return angles, upper_pol, lower_pol, abs_lor.x0
-	
-	
-# 	fig0, (ax, axf) = plt.subplots(2)
 
-	
-# 	for i in range(len(wavenumbers)):
-# 		ax.plot(wavenumbers[i], intensities[i])
-# 		ax.set_xlim([up_bound, low_bound])
-# 		ax.set_ylim(0., 0.9)
-# 
-# 		axf.plot(wavenumbers[i], lor_fits[i])
-# 		axf.set_xlim([int(args.upperbound), int(args.lowerbound)])
-# 		axf.set_ylim(0., 0.9)
-
-	
-# 	ax.set_ylabel('Transmission (%)', fontsize=12)
-# 	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=12)
-# 	axf.set_ylabel('Transmission (%)', fontsize=12)
-# 	ax.set_title('Angle-tuned measurements for Neat DPPA', fontsize=14)
-# 	
-
-# # 	Save figures as PDFs	
-# 	fig0.savefig(os.path.join('/Users/garrek/Desktop/',
-# 							  'angle-tuned_test.pdf'),
-# 							  bbox_inches='tight', 
-# 							  dpi=300)
-
-# 	plt.show()
-
-
-def solve_for_cavity_energy(E_up, E_e, V):
-	"""Refactor Hamiltonian eigenvalues to solve for cavity mode energy"""
-	
-	E_c = 2/3 * ((E_e - E_up) + 
-		  np.sqrt(E_up - 5/2*E_e - 3*(V**2 + 3/4*E_e**2 + E_up*E_e + E_up**2)))
-	
-	return E_c
 
 def fit_dispersion(angles, up, lp, E_e):
 	"""Takes polariton dispersion data and fits it to parabolic function.
@@ -316,7 +360,7 @@ def fit_dispersion(angles, up, lp, E_e):
 	k = np.linspace(0, 20, 11)
 	
 	E_up = quadratic(k, popt_up[0], popt_up[1])
-	E_lp = quadratic(k, popt_lp[0], popt_lp[1])	
+	E_lp = quadratic(k, popt_lp[0], popt_lp[1])
 	V = []
 
 	E_vib = np.full((len(k), ), E_e)
@@ -331,6 +375,7 @@ def fit_dispersion(angles, up, lp, E_e):
 		E_cav.append(float(E_c))
 
 	return E_cav
+
 
 
 def interpolate_polariton():
@@ -395,29 +440,9 @@ def cavity_modes():
 
 	return angles, modes
 
-def absorbance_fitting(wavenum, intensity):
-	"""Returns Lorentzian function class with fitted parameters."""
-	
-	# k, I = get_data(spectrum_file)
-	up_bound = float(args.upperbound)
-	low_bound = float(args.lowerbound)
-	k, I = truncate_data(wavenum, intensity, low_bound, up_bound)
-	lor = Lorentzian()
-	center = low_bound + 1/2 * (up_bound - low_bound)
-	lor.set_x0(center)
 
-	popt, pconv = optimize.curve_fit(lor_1peak, k, I,
-								 p0=[lor.amplitude, lor.x0, lor.gamma, lor.y0])
-	
-	lor.amplitude = popt[0]
-	lor.x0 = popt[1]
-	lor.gamma = popt[2]
-	lor.y0 = popt[3]
-	lor.lor_func(k)
+# ====== Plotting (might move to separate module) ====== #
 
-	return lor
-	
-	
 def plot_absorbance(k, I, lor):
 
 	up_bound = float(args.upperbound)
@@ -437,72 +462,16 @@ def plot_absorbance(k, I, lor):
 	axf.set_ylabel('Transmission (%)')
 	
 	plt.show()
-
-def write_angle_spec_to_file(angle_data_list):
-	"""Takes angles list, wavenumber list, and intensity list.
-		Writes angle-resolved data to csv file with 
-		wavenumber in leftmost column (x-axis), and intensities
-		for each degree (y-axes)."""
-	#TODO: I guess this isn't necessary since raw data exists. More valuable to make plots.
-	angles = []
-	wavenumbers = angle_data_list[0][1]
-	num_wavenums = len(wavenumbers)
-	
-	angle_res_file = 'angle-resolved_spectra.csv'
-	output = os.path.join(os.path.abspath(args.output), angle_res_file)
-	with open (output, 'w') as out_file:
-		filewriter= csv.writer(out_file, delimiter=',')
-		header = ['Wavenumber (cm-1)']
-		for a in angle_data_list:
-			angle = a[0]
-			header.append('Int ' + str(angle) + 'deg (arb)')
-		filewriter.writerow(header)
-
-		i = 0
-		# BIG ASSUMPTION: all data sets have same number of wavenumbers with the same values
-
-		while i < num_wavenums:
-			# Cycle through data points, first set up wavenumbers
-			row = [wavenumbers[i]]
-			
-			for item in angle_data_list:
-				# Cycle through data point for each degree, make a row
-				row.append(item[2][i])
-				
-			filewriter.writerow(row)
-			i+=1
-
-	print('Wrote angle-resolved spectra results to {}'.format(output))
 	
 	return 0
 
-def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav):
-	"""Takes angles and energies (wavenumbers) for upper and lower
-	   polaritons, vibrational energy, calculated cavity mode 
-	   and writes all that data to a csv file."""
+def plot_polariton(x_, y_, fit_func):
+	"""Makes a single plot for polariton data"""
 
-	dispersion_file = 'anti_crossing.csv'
-	output = os.path.join(os.path.abspath(args.output), dispersion_file)
-	with open(output, 'w') as f:
-		filewriter = csv.writer(f, delimiter=',')
-		header = ['Angle (deg)', 
-				  'UP Wavenumber (cm-1)', 'LP Wavenumber (cm-1)',
-				  'Vibration mode (cm-1)', 'Cavity mode (cm-1)']
-		filewriter.writerow(header)
-		
-		i = 0
-		while i < len(angles):
-			row = [angles[i], E_up[i], E_lp[i], E_vib, E_cav[i]]
-			filewriter.writerow(row)
-			i+=1
+	fig, ax = plt.subplots()
+	ax.plot(x_, y_)
+	ax.plot(x_, fit_func)
 
-	print('Wrote dispersion results to {}'.format(output))
-	
-	return 0
-
-def get_params(file_name):
-	"""Gets spectrum parameters from file name"""
-	#TODO: Need to get parameters from file to prevent overwriting data
 
 
 def main():
@@ -520,10 +489,9 @@ def main():
 		
 	elif args.angleres:
 		print('Fitting angle-resolved data')
-
 		ang_data, abs_data = get_angle_data_from_dir(args.spectral_data)
 		write_angle_spec_to_file(ang_data)
-		ang, up, lp, E_vib = anticrossing(ang_data, abs_data)
+		ang, up, lp, E_vib = lorentzian_parsing(ang_data, abs_data)
 		E_cav = fit_dispersion(ang, up, lp, E_vib)
 		write_dispersion_to_file(ang, up, lp, E_vib, E_cav)
 		

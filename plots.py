@@ -1,8 +1,10 @@
 #! /anaconda3/bin/python
 
+import polariton_processing
 import argparse
 import csv
 import sys
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
@@ -13,10 +15,9 @@ def TRA_plots(inputfile):
 	reflectance = []
 	absorptance = []
 	field = []
-	data = sys.argv[1]
 
-	with open(data, 'r') as data:
-		reader = csv.reader(data)
+	with open(inputfile, 'r') as f:
+		reader = csv.reader(f)
 		next(reader, None)
 		for row in reader:
 			wavelength.append(float(row[0]))
@@ -25,39 +26,47 @@ def TRA_plots(inputfile):
 			absorptance.append(float(row[3]))
 			
 	print("Generating plots...")
-	fig, ax = plt.subplots(1, 1, sharex=True)
+	fig, axs = plt.subplots(3, 1, sharex=True)
 	gs1 = gridspec.GridSpec(3, 1)
 	gs1.update(wspace=0.025, hspace=0.005)
 
-# 	ax = axs[0]
-	ax.plot(wavelength, transmittance, 'b-', label="transfer matrix")
-	if args.trns:
+	ax = axs[0]
+	ax.plot(wavelength, transmittance,
+			color='b',
+			linewidth=0.8,
+			label="transfer matrix")
+	if args.transmission:
 		ax.plot(wl_T_data, T_data, linestyle="dashed", color='#FF5733', label="downloaded data")
 	ax.set_ylabel('Transmittance %', fontsize=12)
 	ax.tick_params(axis='both', labelsize=12)
-	# 	ax.set_xlabel('wavelength ($\mu$m)', fontsize=20)
 # 	ax.set_xlim(1, 10)
-	# 	ax.legend()
 
 
-# 	ax = axs[1]
-# 	ax.plot(wavelength, reflectance, 'b-', label="transfer matrix")
-# 	if args.refl:
-# 		ax.plot(wl_R_data, R_data, linestyle="dashed", color='#FF5733', label="downloaded data")
-# 	ax.set_ylabel('Reflectance %', fontsize=12)
-# 
-# 	ax = axs[2]
-# 	ax.plot(wavelength, absorptance, 'b-', label="transfer matrix")
-# 	if args.abso:
-# 		ax.plot(wl_A_data, A_data, linestyle="dashed", color="#FF5733", label="downloaded data")
-# 	ax.set_ylabel('Absorptance %', fontsize=12)
-# 	ax.set_xlabel('wavelength ($\mu$m)', fontsize=12)
+	ax = axs[1]
+	ax.plot(wavelength, reflectance,
+			color='b',
+			linewidth=0.8,
+			label="transfer matrix")
+	if args.reflection:
+		ax.plot(wl_R_data, R_data, linestyle="dashed", color='#FF5733', label="downloaded data")
+	ax.set_ylabel('Reflectance %', fontsize=12)
+
+
+	ax = axs[2]
+	ax.plot(wavelength, absorptance,
+			color='b',
+			linewidth=0.8,
+			label="transfer matrix")
+	if args.absorbance:
+		ax.plot(wl_A_data, A_data, linestyle="dashed", color="#FF5733", label="downloaded data")
+	ax.set_ylabel('Absorptance %', fontsize=12)
+	ax.set_xlabel('Wavelength ($\mu$m)', fontsize=12)
 	
 
-	title = "Etalon with 10 nm Au film, 10 micron air gap"
-	# 	plt.suptitle(title, fontsize=24)
+	title = "Transfer Matrix Method"
+	plt.suptitle(title, fontsize=18)
 	plt.subplots_adjust(top=0.9)
-	# 	plt.tight_layout()
+# 	plt.tight_layout()
 	plt.show()
 
 
@@ -85,10 +94,111 @@ def reference_data(data_file):
 	return wavelength, Y
 
 
+# ====== Plot Polariton Data and Dispersion Curves ====== #
+
+def plot_spectra(spectra_file, excitation=None):
+	"""Takes csv file with spectral data produced by
+	   write_angle_spec_to_file or write_dispersion_to_file functions in
+	   polariton_processing module"""
+	
+	wavenumbers = []
+	intensities = []
+	angles = []
+
+	with open(spectra_file) as sfile:
+		csvreader = csv.reader(sfile)
+		header = next(csvreader)
+		deg_str = 'deg'
+		
+		for deg in header[1:]:
+			ang_start = deg.find(deg_str) + len(deg_str)
+			ang_end = deg.find(' ', ang_start)
+			ang = int(deg[ang_start:ang_end])
+			angles.append(ang)
+			intensities.append([ang, []])
+
+		for row in csvreader:
+			wavenumbers.append(float(row[0]))
+			
+			inten_data = row[1:]
+			for idx, a in enumerate(intensities):
+				a[1].append(float(inten_data[idx]))
+
+	fig, ax = plt.subplots()
+	
+	y_offset = 0.
+	i = len(angles) - 1
+	while i >= 0:
+
+		y_vals = intensities[i][1]
+		y_vals = [y+y_offset for y in y_vals]
+
+		deg_label = str(angles[i])
+		ax.plot(wavenumbers, y_vals,
+				color='black',
+				linewidth=0.5,
+				label=deg_label)
+		y_offset += 0.25
+		i-=1
+		
+	if excitation:
+		ax.axvline(x=excitation)
+	xy_pt1 = (2350, 0.09)
+	xy_pt2 = (2350, 2.7)
+	ax.annotate(r'$\theta$ = 0$\degree$', xy=xy_pt1)
+	ax.annotate(r'$\theta$ = 20$\degree$', xy=xy_pt2)
+	ax.set_xlim([2000, 2400])
+	ax.set_ylim([0, 4])
+	
+	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)')
+	ax.set_ylabel('Transmission %')
+
+	plt.show()
+	
+
+def plot_dispersion(dispersion_file):
+	"""Takes dispersion curve file and plots wavenumber vs angle
+	   for UP, LP, vibration mode, cavity mode"""
+	   
+	angles = []
+	up = []
+	lp = []
+	vibration = []
+	cavity = []
+	
+	with open(dispersion_file, 'r') as dfile:
+		csvreader = csv.reader(dfile)
+		next(csvreader)
+		for row in csvreader:
+			angles.append(int(row[0]))
+			up.append(float(row[1]))
+			lp.append(float(row[2]))
+			vibration.append(float(row[3]))
+			cavity.append(float(row[4]))
+
+	fig, ax = plt.subplots()
+	
+	ax.scatter(angles, up)
+	ax.scatter(angles, lp)
+	ax.plot(angles, vibration, linestyle='dashed', color='dimgray')
+	ax.plot(angles, cavity, linestyle='dashed', color='dimgray')
+	
+	plt.show()
+	
+	return 0
+	
+
 def main():
-	TRA_data = sys.argv[1]
+
+	if args.simulation:
+		TRA_plots(args.simulation)
 # 	field_profile_data = sys.argv[2]
-	TRA_plots(TRA_data)
+
+	if args.dispersion:
+		plot_dispersion(args.dispersion)
+	if args.angles:
+		plot_spectra(args.angles, excitation=2160)
+# 		plot_spectra(args.angles)
 	
 	
 	# ===== Plotting FTIR data ===== #
@@ -119,22 +229,27 @@ if __name__ == "__main__":
 	reflectance_help = "path for reflectance data downloaded from filmetrics"
 	transmittance_help = "path for transmittance data downloaded from filmetrics"
 	absorptance_help = "path for absorptance data downloaded from filmetrics"
+	dispersion_help = "Use this to plot dispersion curves."
+	angle_resolved_help = "Plot angle-resolved data on a single axis."
 	
-	parser.add_argument('sim_data', help=simulation_help)
-	parser.add_argument('-T', '--trns',
+
+	parser.add_argument('-S', '--simulation', help=simulation_help)
+	parser.add_argument('-T', '--transmission',
 						help=transmittance_help)
-	parser.add_argument('-R', '--refl',
+	parser.add_argument('-R', '--reflection',
 						help=reflectance_help)
-	parser.add_argument('-A', '--abso', help=absorptance_help)
+	parser.add_argument('-A', '--absorbance', help=absorptance_help)
+	parser.add_argument('-D', '--dispersion', help=dispersion_help)
+	parser.add_argument('-ANG', '--angles', help=angle_resolved_help)
 	
 	args = parser.parse_args()
 
-	if args.trns:
-		wl_T_data, T_data = reference_data(args.trns)
-	if args.refl:
-		wl_R_data, R_data = reference_data(args.refl)
-	if args.abso:
-		wl_A_data, A_data = reference_data(args.abso)
+	if args.transmission:
+		wl_T_data, T_data = reference_data(args.transmission)
+	if args.reflection:
+		wl_R_data, R_data = reference_data(args.reflection)
+	if args.absorbance:
+		wl_A_data, A_data = reference_data(args.absorbance)
 	else:
 		print("Using no reference data.\n")
 
