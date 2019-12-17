@@ -266,12 +266,12 @@ def quadratic(k_, A, B):
 	quad = A + B*k_**2
 	return quad
 	
-def coupled_energies(Ee, Ec, V, Ep):
+def coupled_energies(Ee, Ec, V, Ep, Em):
 	"""Returns eigen-energies of the coupled Hamiltonian"""
-	f = -Ep +  0.5*(Ee + Ec) + np.sqrt(V**2 + (Ee - Ec)**2)
-# 	Em = 0.5*(Ee + Ec) - np.sqrt(V**2 + (Ee - Ec)**2)
+	f1 = -Ep +  0.5*(Ee + Ec) + np.sqrt(V**2 + (Ee - Ec)**2)
+	f2= -Em + 0.5*(Ee + Ec) - np.sqrt(V**2 + (Ee - Ec)**2)
 	
-	return f
+	return f1 + f2
 	
 	
 # ====== Fitting Procedures ====== #
@@ -429,7 +429,9 @@ def fit_dispersion(angles, up, lp, E_e):
 		V.append(Rabi)
 	
 	for i in range(len(k)):
-		E_c = optimize.fsolve(coupled_energies, x0 = E_vib[i], args=(E_vib[i], V[i], E_up[i]))
+		E_c = optimize.fsolve(coupled_energies,
+							  x0 = E_vib[i],
+							  args=(E_vib[i], V[i], E_up[i], E_lp[i]))
 		E_cav.append(float(E_c))
 
 	return E_cav

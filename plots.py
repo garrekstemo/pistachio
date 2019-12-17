@@ -1,8 +1,9 @@
 #! /anaconda3/bin/python
 
-import polariton_processing
+import polariton_processing as pp
 import argparse
 import csv
+import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -68,7 +69,7 @@ def TRA_plots(inputfile):
 	plt.subplots_adjust(top=0.9)
 # 	plt.tight_layout()
 
-	if args.savefile:
+	if args.savedir:
 		print("Saving figure as pdf")
 	else:
 		plt.show()
@@ -100,7 +101,7 @@ def reference_data(data_file):
 
 # ====== Plot Polariton Data and Dispersion Curves ====== #
 
-def plot_spectra(spectra_file, excitation=None):
+def plot_spectra(file_prefix, spectra_file, excitation=None):
 	"""Takes csv file with spectral data produced by
 	   write_angle_spec_to_file or write_dispersion_to_file functions in
 	   polariton_processing module"""
@@ -157,8 +158,9 @@ def plot_spectra(spectra_file, excitation=None):
 	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)')
 	ax.set_ylabel('Transmission %')
 
-	if args.savefile:
-		output_file = args.savefile
+	if args.savedir:
+		file_name = file_prefix + '_' + 'cascade_plot.pdf'
+		output_file = os.path.join(args.savedir, file_name)
 		fig.savefig(output_file, bbox_inches='tight')
 		print("Saved cascade plot to {}".format(output_file))
 	else:
@@ -167,7 +169,7 @@ def plot_spectra(spectra_file, excitation=None):
 	return 0
 	
 
-def plot_dispersion(dispersion_file):
+def plot_dispersion(file_prefix, dispersion_file):
 	"""Takes dispersion curve file and plots wavenumber vs angle
 	   for UP, LP, vibration mode, cavity mode"""
 	   
@@ -213,8 +215,10 @@ def plot_dispersion(dispersion_file):
 	ax.annotate(vib_label, xy=vib_xy, xytext=(-80, 3.), textcoords='offset points')
 # 	ax.annotate(cav_label, xy=cav_xy, xytext=(-90, 0.), textcoords='offset points')
 	
-	if args.savefile:
-		output_file = args.savefile
+	if args.savedir:
+		file_name = file_prefix + 'dispersion_curve.pdf'
+		output_file = os.path.join(args.savedir, file_name)
+		print(output_file)
 		fig.savefig(output_file, bbox_inches='tight')
 		print("Saved dispersion plot to {}".format(output_file))
 	else:
@@ -225,15 +229,27 @@ def plot_dispersion(dispersion_file):
 
 def main():
 
+
 	if args.simulation:
 		TRA_plots(args.simulation)
 # 	field_profile_data = sys.argv[2]
 
 	if args.dispersion:
-		plot_dispersion(args.dispersion)
+		#TODO: Handle Neat_DPPA type file names
+		#TODO: Use parameter strings to title plots
+		dispersion_data = args.dispersion
+		sample_name, params = pp.get_sample_params(dispersion_data)
+		file_prefix = params[0] + '_' + params[1]
+		plot_dispersion(file_prefix, dispersion_data)
+
 	if args.angles:
-		plot_spectra(args.angles, excitation=2171)
-# 		plot_spectra(args.angles)
+		angle_data = args.angles
+		sample_name, params = pp.get_sample_params(angle_data)
+		
+		file_prefix = params[0] + '_' + params[1]
+		
+		plot_spectra(file_prefix, angle_data, excitation=2171)
+# 		plot_spectra(file_prefix, angle_data)
 	
 	
 	# ===== Plotting FTIR data ===== #
@@ -278,7 +294,7 @@ if __name__ == "__main__":
 	parser.add_argument('-A', '--absorbance', help=absorptance_help)
 	parser.add_argument('-D', '--dispersion', help=dispersion_help)
 	parser.add_argument('-ANG', '--angles', help=angle_resolved_help)
-	parser.add_argument('-S', '--savefile', help=save_help)
+	parser.add_argument('-S', '--savedir', help=save_help)
 	
 	args = parser.parse_args()
 
