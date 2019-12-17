@@ -116,6 +116,7 @@ def get_param_from_string(string, separator):
 
 	count = 0
 	while count < num_locs:
+
 		if count == 0:
 			first = 0
 			second = str_loc[count]
@@ -204,11 +205,10 @@ def write_angle_spec_to_file(angle_data_list, sample_name):
 		while i < num_wavenums:
 			# Cycle through data points, first set up wavenumbers
 			row = [wavenumbers[i]]
-			
 			for item in angle_data_list:
 				# Cycle through data point for each degree, make a row
 				row.append(item[2][i])
-				
+
 			filewriter.writerow(row)
 			i+=1
 	
@@ -234,7 +234,6 @@ def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav, sample_name):
 		
 		i = 0
 		while i < len(angles):
-# 			print(i)
 			row = [angles[i], E_up[i], E_lp[i], E_vib, E_cav[i]]
 			filewriter.writerow(row)
 			i+=1
