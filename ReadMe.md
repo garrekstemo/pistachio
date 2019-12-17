@@ -99,6 +99,28 @@ There are a few different flags that can be used to specify the type of analysis
 
 Command line arguments include, input file or directory, output directory, upper and lower wave number bound (for truncating data to perform fitting). 
 
+
+### How to name files and folders for experiments
+
+In order to process data efficiently, it is important to have a consistent naming scheme. The `polariton_processing.py` program relies on file and directory naming consistency to batch process angle-resolved data. A directory containing angle-resolved csv files shall have the naming convention
+
+`concentration_solvent_in_solute`
+
+For example:
+
+`1.5M_WCO6_in_hexane`
+
+The directory name is used to prevent the program from overwriting data when going through each angle. If using a neat liquid, add an extra underscore after the name. This is not an ideal solution, but this is what I've got at this point. So you would name it `Neat_WCO6_`, for example.
+
+Angle-resolved csv files must contain the string `degNUM`where `NUM` is an integer. For example, `deg2` for incident angle 2 degrees.
+
+Inside this directory should also be an absorbance csv file containing the target coupling band. This file should start with the string `Abs`.
+
+Unfortunately, naming is done manually for most experimental setups so the user must take care to name their raw data carefully. No attempt is made by the program to guess misspellings, etc.
+
+The program currently does not handle vacant cavity data, but this might be added in the future.
+
+
 ### Angle-resolved polariton spectral data
 
 Angle-resolved polariton data will include a Lorentzian[^3] double peak and multiple files representing each angle at which an experiment was performed. The directory may include absorbance data for the isolated target sample.

@@ -67,7 +67,11 @@ def TRA_plots(inputfile):
 	plt.suptitle(title, fontsize=18)
 	plt.subplots_adjust(top=0.9)
 # 	plt.tight_layout()
-	plt.show()
+
+	if args.savefile:
+		print("Saving figure as pdf")
+	else:
+		plt.show()
 
 
 def reference_data(data_file):
@@ -153,7 +157,14 @@ def plot_spectra(spectra_file, excitation=None):
 	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)')
 	ax.set_ylabel('Transmission %')
 
-	plt.show()
+	if args.savefile:
+		output_file = args.savefile
+		fig.savefig(output_file, bbox_inches='tight')
+		print("Saved cascade plot to {}".format(output_file))
+	else:
+		plt.show()
+	
+	return 0
 	
 
 def plot_dispersion(dispersion_file):
@@ -178,12 +189,36 @@ def plot_dispersion(dispersion_file):
 
 	fig, ax = plt.subplots()
 	
-	ax.scatter(angles, up)
-	ax.scatter(angles, lp)
-	ax.plot(angles, vibration, linestyle='dashed', color='dimgray')
+	vib_label = 'N=N=N  ' + str(int(vibration[0]))
+	vib_xy = (angles[-1], vibration[0])
+	
+	cav_label = 'cavity dispersion'
+	cav_xy = (angles[-1], cavity[-1])
+	
+	mark_size = 10
+	
+	ax.scatter(angles, up, s=mark_size)
+	ax.scatter(angles, lp, s=mark_size)
+	ax.plot(angles, vibration,
+			linestyle='dashed',
+			color='dimgray',
+			label=vib_label)
 	ax.plot(angles, cavity, linestyle='dashed', color='dimgray')
 	
-	plt.show()
+	ax.set_xticks(angles)
+	
+	ax.set_xlabel(r'Incident angle (deg)')
+	ax.set_ylabel(r'Wavenumber (cm$^{-1}$)')
+	
+	ax.annotate(vib_label, xy=vib_xy, xytext=(-80, 3.), textcoords='offset points')
+# 	ax.annotate(cav_label, xy=cav_xy, xytext=(-90, 0.), textcoords='offset points')
+	
+	if args.savefile:
+		output_file = args.savefile
+		fig.savefig(output_file, bbox_inches='tight')
+		print("Saved dispersion plot to {}".format(output_file))
+	else:
+		plt.show()
 	
 	return 0
 	
@@ -197,7 +232,7 @@ def main():
 	if args.dispersion:
 		plot_dispersion(args.dispersion)
 	if args.angles:
-		plot_spectra(args.angles, excitation=2160)
+		plot_spectra(args.angles, excitation=2171)
 # 		plot_spectra(args.angles)
 	
 	
@@ -231,9 +266,11 @@ if __name__ == "__main__":
 	absorptance_help = "path for absorptance data downloaded from filmetrics"
 	dispersion_help = "Use this to plot dispersion curves."
 	angle_resolved_help = "Plot angle-resolved data on a single axis."
+	save_help = "Saves plot to a pdf instead of sending to the python viewer.\
+				 Requires output path."
 	
 
-	parser.add_argument('-S', '--simulation', help=simulation_help)
+	parser.add_argument('-SIM', '--simulation', help=simulation_help)
 	parser.add_argument('-T', '--transmission',
 						help=transmittance_help)
 	parser.add_argument('-R', '--reflection',
@@ -241,6 +278,7 @@ if __name__ == "__main__":
 	parser.add_argument('-A', '--absorbance', help=absorptance_help)
 	parser.add_argument('-D', '--dispersion', help=dispersion_help)
 	parser.add_argument('-ANG', '--angles', help=angle_resolved_help)
+	parser.add_argument('-S', '--savefile', help=save_help)
 	
 	args = parser.parse_args()
 

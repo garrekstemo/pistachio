@@ -4,7 +4,7 @@
 Polariton Data Processing
 Author: Garrek Stemo
 Date Created: November 18, 2019
-Date Updated: December 11, 2019
+Date Updated: December 17, 2019
 Description: This program takes spectral data in .csv format
 and performs curve fitting and other analysis, including graphical
 output.
@@ -12,6 +12,7 @@ output.
 
 import argparse
 import os
+import re
 import sys
 import csv
 import numpy as np
@@ -102,10 +103,64 @@ def get_angle_data_from_dir(directory):
 	angle_data.sort()
 	
 	return angle_data, absorbance_data
+
+def get_param_from_string(string, separator):
+	"""Use regular expressions to find character in string
+	   with repeated separation character (like '/' or '_')"""
+	   
+	str_loc = [m.start() for m in re.finditer(separator, string)]
+	params = []
+	p = 0
+	num_locs = len(str_loc)
+	len_sep = len(separator)
+
+	count = 0
+	while count < num_locs:
+		if count == 0:
+			first = 0
+			second = str_loc[count]
+			third = str_loc[count+1]
+			p = string[first:second]
+			params.append(p)
+			p = string[second:third]
+			
+		elif str_loc[count] == str_loc[-1]:
+			first = str_loc[count]
+			p = string[first:]
+
+		else:
+
+			first = str_loc[count]
+			second = str_loc[count+1]
+			p = string[first:second]
+
+		params.append(p)
+		count += 1
+
+	params = [p.strip(separator) for p in params]
+
+	return params
+
+def get_sample_params(directory):
+	"""Gets parameters for each angle from angle-resolved directory and file name.
+	   Returns concentration (M = mol/liter), solute name, solvent name."""
+
+	sample = None
 	
-def get_params(file_name):
-	"""Gets spectrum parameters from file name"""
-	#TODO: Need to get parameters from file to prevent overwriting data	
+	if directory[-1] == '/':
+		directory = directory[:-1]
+	if directory[0] == '/':
+		directory = directory[1:]
+
+	sample_name = get_param_from_string(directory, '/')[-1] #last element is angle directory
+	params = get_param_from_string(sample_name, '_')
+	
+	if 'in' in params:
+		params.remove('in')
+	if sample_name[-1] == '_':
+		sample_name = sample_name[:-1]
+
+	return sample_name, params
 	
 def truncate_data(xdata, ydata, bound1, bound2):
 	"""Truncate data to isolate desired peaks for fitting"""
@@ -124,17 +179,17 @@ def truncate_data(xdata, ydata, bound1, bound2):
 	
 	return xdata[lower_pt:upper_pt], ydata[lower_pt:upper_pt]
 	
-def write_angle_spec_to_file(angle_data_list):
+def write_angle_spec_to_file(angle_data_list, sample_name):
 	"""Takes angles list, wavenumber list, and intensity list.
 		Writes angle-resolved data to csv file with 
 		wavenumber in leftmost column (x-axis), and intensities
 		for each degree (y-axes)."""
-	#TODO: I guess this isn't necessary since raw data exists. More valuable to make plots.
+
 	angles = []
 	wavenumbers = angle_data_list[0][1]
 	num_wavenums = len(wavenumbers)
-	
-	angle_res_file = 'angle-resolved_spectra.csv'
+
+	angle_res_file = sample_name + '_angle-resolved_spectra.csv'
 	output = os.path.join(os.path.abspath(args.output), angle_res_file)
 	with open(output, 'w') as out_file:
 		filewriter= csv.writer(out_file, delimiter=',')
@@ -156,18 +211,19 @@ def write_angle_spec_to_file(angle_data_list):
 				
 			filewriter.writerow(row)
 			i+=1
-			
-	print('Wrote angle-resolved spectra results to {}'.format(output))
+	
+	print('')	
+	print('Wrote angle-resolved spectra results to {}\n'.format(output))
 	
 	return 0
 
-def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav):
+def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav, sample_name):
 	"""Takes angles and energies (wavenumbers) for upper and lower
 	   polaritons, vibrational energy, calculated cavity mode 
 	   and writes all that data to a csv file.
 	   REMEMBER: change plot_dispersion in plots.py if output file format changes."""
 
-	dispersion_file = 'anti_crossing.csv'
+	dispersion_file = sample_name + '_dispersion.csv'
 	output = os.path.join(os.path.abspath(args.output), dispersion_file)
 	with open(output, 'w') as f:
 		filewriter = csv.writer(f, delimiter=',')
@@ -178,11 +234,13 @@ def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav):
 		
 		i = 0
 		while i < len(angles):
+# 			print(i)
 			row = [angles[i], E_up[i], E_lp[i], E_vib, E_cav[i]]
 			filewriter.writerow(row)
 			i+=1
 
-	print('Wrote dispersion results to {}'.format(output))
+	print('')
+	print('Wrote dispersion results to {}\n'.format(output))
 	
 	return 0
 
@@ -475,25 +533,27 @@ def plot_polariton(x_, y_, fit_func):
 
 
 def main():
-	
+	spectral_data = args.spectral_data
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
-		x, y, fit = polariton_fitting(args.spectral_data)
+		x, y, fit = polariton_fitting(spectral_data)
 		plot_polariton(x, y, fit)
 		
 	elif args.absorbance:
 		print('Fitting single-peak Lorentzian')
-		k, I = get_data(args.spectral_data)
+		k, I = get_data(spectral_data)
 		lor = absorbance_fitting(k, I)
 		plot_absorbance(k, I, lor)
 		
 	elif args.angleres:
 		print('Fitting angle-resolved data')
-		ang_data, abs_data = get_angle_data_from_dir(args.spectral_data)
-		write_angle_spec_to_file(ang_data)
+		ang_data, abs_data = get_angle_data_from_dir(spectral_data)
+		sample, params = get_sample_params(spectral_data)
+		write_angle_spec_to_file(ang_data, sample)
 		ang, up, lp, E_vib = lorentzian_parsing(ang_data, abs_data)
 		E_cav = fit_dispersion(ang, up, lp, E_vib)
-		write_dispersion_to_file(ang, up, lp, E_vib, E_cav)
+		write_dispersion_to_file(ang, up, lp, E_vib, E_cav, sample)
+		
 		
 	else:
 		print('No input data found')
