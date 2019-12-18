@@ -232,11 +232,13 @@ def coupled_energies(Ee, Ec, V, Ep, Em):
 	
 # ====== Fitting Procedures ====== #
 
-def absorbance_fitting(wavenum, intensity):
-	"""Returns Lorentzian function class with fitted parameters for absorbance."""
+def absorbance_fitting(wavenum, intensity, bounds):
+	"""Takes list of wavenumber and intensity lists for x, y axes.
+	   Takes bounds to truncate for fitting.
+	   Returns Lorentzian function class with fitted parameters for absorbance."""
 	
-	up_bound = float(args.upperbound)
-	low_bound = float(args.lowerbound)
+	low_bound = bounds[0]
+	up_bound = bounds[1]
 	k, I = truncate_data(wavenum, intensity, low_bound, up_bound)
 	lor = Lorentzian()
 	center = low_bound + 1/2 * (up_bound - low_bound)
@@ -313,13 +315,13 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	return lor_fit, lorz1, lorz2
 
 
-def lorentzian_parsing(angle_data, absor_data):
-	"""Takes raw angle-resolved spectra, absorbance spectrum.
+def lorentzian_parsing(angle_data, absor_data, bounds):
+	"""Takes raw angle-resolved spectra, absorbance spectrum, list with upper, lower bound.
 	   Returns lists of angles, upper/lower polariton peak positions (cm-1),
 	   absorbance peak position. This info is used for dispersion curves later."""
 
-	up_bound = float(args.upperbound)
-	low_bound = float(args.lowerbound)
+	low_bound = bounds[0]
+	up_bound = bounds[1]
 	
 	# Initialize classes to store Lorentzian fit data
 	lorz1 = Lorentzian()
@@ -340,7 +342,7 @@ def lorentzian_parsing(angle_data, absor_data):
 	
 	abs_k = absor_data[0]
 	abs_I = absor_data[1]
-	abs_lor = absorbance_fitting(abs_k, abs_I)
+	abs_lor = absorbance_fitting(abs_k, abs_I, bounds)
 
 	for d in angle_data:
 
@@ -398,7 +400,7 @@ def interpolate_polariton():
 	"""Not Implemented"""
 
 
-def cavity_modes():
+def cavity_modes(bounds):
 	"""Use at your own peril."""
 	degree = []  # degree paired with spectrum file
 	cavity_dir = args.cavity_mode
@@ -414,8 +416,8 @@ def cavity_modes():
 				degree.append([deg, spec_file])	
 	degree.sort()
 
-	up_bound = float(args.upperbound)
-	low_bound = float(args.lowerbound)
+	low_bound = bounds[0]
+	up_bound = bounds[1]
 	x0 = float(args.cav_center)
 	
 	lor = Lorentzian()
@@ -459,10 +461,10 @@ def cavity_modes():
 
 # ====== Plotting (might move to separate module) ====== #
 
-def plot_absorbance(k, I, lor):
+def plot_absorbance(k, I, lor, bounds):
 
-	up_bound = float(args.upperbound)
-	low_bound = float(args.lowerbound)
+	low_bound = bounds[0]
+	up_bound = bounds[1]
 
 	fig, (ax, axf) = plt.subplots(2)
 	
@@ -491,7 +493,14 @@ def plot_polariton(x_, y_, fit_func):
 
 
 def main():
+
 	spectral_data = args.spectral_data
+	bounds = []
+		
+	if args.bounds:
+		bounds = args.bounds
+		bounds.sort()
+	
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
 		x, y, fit = polariton_fitting(spectral_data)
@@ -508,10 +517,9 @@ def main():
 		ang_data, abs_data = get_angle_data_from_dir(spectral_data)
 		sample, params = get_sample_params(spectral_data)
 		write_angle_spec_to_file(ang_data, sample)
-		ang, up, lp, E_vib = lorentzian_parsing(ang_data, abs_data)
+		ang, up, lp, E_vib = lorentzian_parsing(ang_data, abs_data, bounds)
 		E_cav = fit_dispersion(ang, up, lp, E_vib)
 		write_dispersion_to_file(ang, up, lp, E_vib, E_cav, sample)
-		
 		
 	else:
 		print('No input data found')
@@ -530,18 +538,16 @@ if __name__ == '__main__':
 	pol_help = "Boolean. Lorentzian fit for a single spectrum file."
 	abs_help = "Boolean indicating absorbance single peak data."
 	angle_help = "Boolean indicating directory contains angle-resolved data."
-	lbound_help = "Lower x-axis bound for fitting."
-	ubound_help = "Upper x-axis bound for fitting."
+	bound_help = "Pass two lower and upper bounds to truncate x-axis for fitting."
 	
 	parser.add_argument('spectral_data', help=spectrum_help)
 	parser.add_argument('output', help=output_help)
 	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
-	parser.add_argument('-CC', '--cav_center', help=cav_cen_help)
+	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
 	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
 	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
 	parser.add_argument('-T', '--angleres', action='store_true', help=angle_help)
-	parser.add_argument('-L', '--lowerbound', help=lbound_help)
-	parser.add_argument('-U', '--upperbound', help=ubound_help)
+	parser.add_argument('-B', '--bounds', nargs='+', type=float, help=bound_help)
 	
 	args = parser.parse_args()
 	

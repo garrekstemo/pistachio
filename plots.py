@@ -251,8 +251,8 @@ def main():
 		
 		file_prefix = params[0] + '_' + params[1]
 		
-		plot_spectra(file_prefix, angle_data, excitation=2171)
-# 		plot_spectra(file_prefix, angle_data)
+# 		plot_spectra(file_prefix, angle_data, excitation=2171)
+		plot_spectra(file_prefix, angle_data)
 	
 	
 	# ===== Plotting FTIR data ===== #

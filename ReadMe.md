@@ -85,10 +85,7 @@ The keen eye will notice that there is a field profile function in the transfer 
 
 ## Lorentzian fitting and Dispersion Curves
 
-This is a bit of a mess right now, with way too many command-line flags and
-code that is cobbled together. Some functions work and others need fine-tuning by the user. See the help (`polariton_processing.py -h`) documentation for run details.
-
-This program processes and analyzes spectral data, specifically light-matter coupling FTIR experiments. Correct processing is dependent on a particular file and folder naming scheme. Input files must be .csv.
+This program processes and analyzes spectral data, specifically light-matter coupling FTIR experiments.
 
 There are a few different flags that can be used to specify the type of analysis you want to do. They are: 
 
@@ -97,7 +94,9 @@ There are a few different flags that can be used to specify the type of analysis
 3. bare vibration mode -> plot the spectrum and perform fitting
 4. single polariton spectrum -> plot and perform fitting
 
-Command line arguments include, input file or directory, output directory, upper and lower wave number bound (for truncating data to perform fitting). 
+Command line arguments include, input file or directory, output directory, upper and lower wave number bound (for truncating data to perform fitting). An example input might look like
+
+`python polariton_processing.py -B 2000 2400 -T /Users/../data/out/1.0M_WCO6_in_Hexane /Users/../data/out/` 
 
 
 ### How to name files and folders for experiments
