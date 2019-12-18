@@ -110,11 +110,9 @@ For example:
 
 `1.5M_WCO6_in_hexane`
 
-The directory name is used to prevent the program from overwriting data when going through each angle. If using a neat liquid, add an extra underscore after the name. This is not an ideal solution, but this is what I've got at this point. So you would name it `Neat_WCO6_`, for example.
+The directory name is used to prevent the program from overwriting data when going through each angle.
 
-Angle-resolved csv files must contain the string `degNUM`where `NUM` is an integer. For example, `deg2` for incident angle 2 degrees.
-
-Inside this directory should also be an absorbance csv file containing the target coupling band. This file should start with the string `Abs`.
+Angle-resolved csv files must contain the string `degNUM`where `NUM` is an integer. For example, `deg2` for incident angle 2 degrees. Inside this directory should also be an absorbance csv file containing the target coupling band. This file should start with the string `Abs`.
 
 Unfortunately, naming is done manually for most experimental setups so the user must take care to name their raw data carefully. No attempt is made by the program to guess misspellings, etc.
 
@@ -144,6 +142,9 @@ More details on calculation methods later ....
 
 Anyway, this option will output a csv will all the data needed to produce dispersion curves for the polariton modes, vibration mode, and cavity mode all in one plot. Proper plotting functionality coming later.
 
+## Plotting
+
+Plotting processed experimental data is relatively robust. Processed data from `polariton_processing.py` will have file names that can be read by `plots.py`, which can generate plots automatically. The user will need to manually adjust xlim and slim, as well as labels. This is a pain, but shouldn't be too hard to do.
 
 ## How to install Pistachio
 

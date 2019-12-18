@@ -104,61 +104,17 @@ def get_angle_data_from_dir(directory):
 	
 	return angle_data, absorbance_data
 
-def get_param_from_string(string, separator):
-	"""Use regular expressions to find character in string
-	   with repeated separation character (like '/' or '_')"""
-	   
-	str_loc = [m.start() for m in re.finditer(separator, string)]
-	params = []
-	p = 0
-	num_locs = len(str_loc)
-	len_sep = len(separator)
-
-	count = 0
-	while count < num_locs:
-		if count == 0:
-			first = 0
-			second = str_loc[count]
-			third = str_loc[count+1]
-			p = string[first:second]
-			params.append(p)
-			p = string[second:third]
-			
-		elif str_loc[count] == str_loc[-1]:
-			first = str_loc[count]
-			p = string[first:]
-
-		else:
-
-			first = str_loc[count]
-			second = str_loc[count+1]
-			p = string[first:second]
-
-		params.append(p)
-		count += 1
-
-	params = [p.strip(separator) for p in params]
-
-	return params
 
 def get_sample_params(directory):
 	"""Gets parameters for each angle from angle-resolved directory and file name.
 	   Returns concentration (M = mol/liter), solute name, solvent name."""
 
-	sample = None
-	
-	if directory[-1] == '/':
-		directory = directory[:-1]
-	if directory[0] == '/':
-		directory = directory[1:]
-
-	sample_name = get_param_from_string(directory, '/')[-1] #last element is angle directory
-	params = get_param_from_string(sample_name, '_')
+	sample_name = directory.split('/') #last element is angle directory
+	sample_name = list(filter(None, sample_name))[-1]
+	params = sample_name.split('_')
 	
 	if 'in' in params:
 		params.remove('in')
-	if sample_name[-1] == '_':
-		sample_name = sample_name[:-1]
 
 	return sample_name, params
 	

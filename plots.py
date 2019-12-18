@@ -25,7 +25,7 @@ def TRA_plots(inputfile):
 			transmittance.append(float(row[1]))
 			reflectance.append(float(row[2]))
 			absorptance.append(float(row[3]))
-			
+
 	print("Generating plots...")
 	fig, axs = plt.subplots(3, 1, sharex=True)
 	gs1 = gridspec.GridSpec(3, 1)
@@ -148,10 +148,15 @@ def plot_spectra(file_prefix, spectra_file, excitation=None):
 		
 	if excitation:
 		ax.axvline(x=excitation)
+	
+	#TODO: Don't hard code these labels or xlim, ylim.
 	xy_pt1 = (2350, 0.09)
 	xy_pt2 = (2350, 2.7)
-	ax.annotate(r'$\theta$ = 0$\degree$', xy=xy_pt1)
-	ax.annotate(r'$\theta$ = 20$\degree$', xy=xy_pt2)
+	theta1 = str(angles[0])
+	theta2 = str(angles[-1])
+
+	ax.annotate(r'$\theta$ = {}$\degree$'.format(theta1), xy=xy_pt1)
+	ax.annotate(r'$\theta$ = {}$\degree$'.format(theta2), xy=xy_pt2)
 	ax.set_xlim([2000, 2400])
 	ax.set_ylim([0, 4])
 	
@@ -159,7 +164,7 @@ def plot_spectra(file_prefix, spectra_file, excitation=None):
 	ax.set_ylabel('Transmission %')
 
 	if args.savedir:
-		file_name = file_prefix + '_' + 'cascade_plot.pdf'
+		file_name = file_prefix + '_cascade_plot.pdf'
 		output_file = os.path.join(args.savedir, file_name)
 		fig.savefig(output_file, bbox_inches='tight')
 		print("Saved cascade plot to {}".format(output_file))
@@ -216,7 +221,7 @@ def plot_dispersion(file_prefix, dispersion_file):
 # 	ax.annotate(cav_label, xy=cav_xy, xytext=(-90, 0.), textcoords='offset points')
 	
 	if args.savedir:
-		file_name = file_prefix + 'dispersion_curve.pdf'
+		file_name = file_prefix + '_dispersion_curve.pdf'
 		output_file = os.path.join(args.savedir, file_name)
 		print(output_file)
 		fig.savefig(output_file, bbox_inches='tight')
@@ -229,13 +234,11 @@ def plot_dispersion(file_prefix, dispersion_file):
 
 def main():
 
-
 	if args.simulation:
 		TRA_plots(args.simulation)
 # 	field_profile_data = sys.argv[2]
 
 	if args.dispersion:
-		#TODO: Handle Neat_DPPA type file names
 		#TODO: Use parameter strings to title plots
 		dispersion_data = args.dispersion
 		sample_name, params = pp.get_sample_params(dispersion_data)
@@ -271,7 +274,7 @@ def main():
 
 if __name__ == "__main__":
 	
-	#TODO: Make flag to toggle powerpoint fonts and font sizes
+	#TODO: Make flag to toggle powerpoint and paper font settings
 	parser = argparse.ArgumentParser()
 	
 	simulation_help = "Input file from transfer_matrix.py with transmittance, \
