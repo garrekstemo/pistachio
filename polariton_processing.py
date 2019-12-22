@@ -179,7 +179,7 @@ def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav, sample_name):
 	   and writes all that data to a csv file.
 	   REMEMBER: change plot_dispersion in plots.py if output file format changes."""
 
-	dispersion_file = sample_name + '_dispersion.csv'
+	dispersion_file = sample_name + '_dispersion_NEW.csv'
 	output = os.path.join(os.path.abspath(args.output), dispersion_file)
 	with open(output, 'w') as f:
 		filewriter = csv.writer(f, delimiter=',')
@@ -224,10 +224,14 @@ def quadratic(k_, A, B):
 	
 def coupled_energies(Ee, Ec, V, Ep, Em):
 	"""Returns eigen-energies of the coupled Hamiltonian"""
-	f1 = -Ep +  0.5*(Ee + Ec) + np.sqrt(V**2 + (Ee - Ec)**2)
-	f2= -Em + 0.5*(Ee + Ec) - np.sqrt(V**2 + (Ee - Ec)**2)
-	
+	f1 = -Ep +  0.5*((Ee + Ec) + np.sqrt(4*V**2 + (Ee - Ec)**2))
+	f2= -Em + 0.5*((Ee + Ec) - np.sqrt(4*V**2 + (Ee - Ec)**2))
 	return f1 + f2
+	
+def cavity_mode_energy(E0, angle, n_):
+	"""E0 is some initial energy, angle is in radians, n_ is refractive index"""
+	E_cav = E0*np.sqrt((1 - (np.sin(angle)/n_)**2))
+	return E_cav
 	
 	
 # ====== Fitting Procedures ====== #
@@ -327,7 +331,7 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 	lorz1 = Lorentzian()
 	lorz2 = Lorentzian()
 	
-	# Initial polariton positional guesses
+	# Initial polariton position guesses
 	x01 = low_bound + 1/3 * (up_bound - low_bound)
 	x02 = low_bound + 2/3 * (up_bound - low_bound)
 	lorz1.set_x0(x01)
@@ -368,9 +372,11 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 	return angles, upper_pol, lower_pol, abs_lor.x0
 
 
-def fit_dispersion(angles, up, lp, E_e):
+def fit_dispersion(angles, up, lp, E_e, E_c_guess=None):
 	"""Takes polariton dispersion data and fits it to parabolic function.
 		Also takes vibration excitation energy"""
+
+	#TODO: validate cavity mode calculation
 	popt_up, pconv_up = optimize.curve_fit(quadratic, angles, up)
 	popt_lp, pconv_lp = optimize.curve_fit(quadratic, angles, lp)
 	k = np.linspace(0, 20, 11)
@@ -381,16 +387,18 @@ def fit_dispersion(angles, up, lp, E_e):
 
 	E_vib = np.full((len(k), ), E_e)
 	E_cav = []
+	n_guess = 1.5
 
-	for idx, a in enumerate(k):
-		Rabi = 0.5*(E_up[idx] - E_lp[idx])  # Rabi splitting
-		V.append(Rabi)
+	if E_c_guess == None:
+		E_cav_guess = E_e  # Guess cavity mode wavenumber
+	else:
+		E_cav_guess = E_c_guess
 	
-	for i in range(len(k)):
-		E_c = optimize.fsolve(coupled_energies,
-							  x0 = E_vib[i],
-							  args=(E_vib[i], V[i], E_up[i], E_lp[i]))
-		E_cav.append(float(E_c))
+	V_guess = 65  # Initial Rabi splitting guess
+	for a in angles:
+		a = np.pi/180 * a
+		
+		optimize.least_squares(x0 = [E_c_guess, n_guess, V_guess, E_e])
 
 	return E_cav
 
