@@ -40,7 +40,7 @@ def TRA_plots(inputfile):
 		ax.plot(wl_T_data, T_data, linestyle="dashed", color='#FF5733', label="downloaded data")
 	ax.set_ylabel('Transmittance %', fontsize=12)
 	ax.tick_params(axis='both', labelsize=12)
-# 	ax.set_xlim(1, 10)
+	ax.set_xlim(2, 7)
 
 
 	ax = axs[1]

@@ -489,11 +489,11 @@ def main_loop():
 		TM = np.linalg.multi_dot(M)
 		trns = transmittance(TM).real
 		refl = reflectance(TM).real
-		field = field_amp(M, device["wave"]['A0'], device['wave']['B0'])
+# 		field = field_amp(M, device["wave"]['A0'], device['wave']['B0'])
 		logging.info('Only using forward-propagating field values')
-		field = [f[0] for f in field]
+# 		field = [f[0] for f in field]
 			
-		E_amps.append(field)
+# 		E_amps.append(field)
 		T.append(trns)
 		R.append(refl)
 		abso = 1 - trns - refl
@@ -501,7 +501,7 @@ def main_loop():
 
 	#Write everything to a csv file
 	output_TRA(wavelens, T, R, A)
-	output_field_profile(wavelens, layers, E_amps)
+# 	output_field_profile(wavelens, layers, E_amps)
 
 
 def main():

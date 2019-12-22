@@ -395,11 +395,6 @@ def fit_dispersion(angles, up, lp, E_e):
 	return E_cav
 
 
-
-def interpolate_polariton():
-	"""Not Implemented"""
-
-
 def cavity_modes(bounds):
 	"""Use at your own peril."""
 	degree = []  # degree paired with spectrum file
