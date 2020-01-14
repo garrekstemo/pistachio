@@ -19,6 +19,10 @@ import numpy as np
 from scipy import optimize
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
+from ruamel_yaml import YAML
+
+yaml = YAML()
+
 
 
 class Lorentzian:
@@ -51,7 +55,32 @@ class Lorentzian:
 		return lor
 
 
-# ========== Get and write data ========== #
+# ========== Get and write params and data ========== #
+
+def get_bounds_from_yaml(yaml_config):
+	"""Takes a yaml config file and gets the upper and lower bound
+		used for truncating and Lorentzian fitting later."""
+	with open(yaml_config, 'r') as yml:
+		config = yaml.load(yml)
+		
+	lower = config['bounds']['lower']
+	upper = config['bounds']['upper']
+	return [lower, upper]
+	
+def get_initial_from_yaml(yaml_config):
+	"""Takes yaml config file and gets initial guesses
+		for nonlinear least squares fit of dispersion curves later."""
+		
+	with open(yaml_config, 'r') as yml:
+		config = yaml.load(yml)
+		
+	E_0_guess = config['least_squares_guesses']['E_cav_0']
+	Rabi_guess = config['least_squares_guesses']['Rabi_splitting']
+	n_guess = config['least_squares_guesses']['refractive_index']
+	E_vib_guess = config['least_squares_guesses']['E_exc']
+	
+	return [E_0_guess, Rabi_guess, n_guess, E_vib_guess]
+	
 
 def get_data(spectral_data):
 	"""Retrieve csv spectral data and store in array."""
@@ -60,7 +89,7 @@ def get_data(spectral_data):
 	I = []
 	with open(spectral_data, 'r', errors='ignore') as spectrum:
 		csvreader = csv.reader(spectrum)
-		num_header_rows = 19
+		num_header_rows = 19   # Yeah this is hard coded. Not so great.
 		for s in range(num_header_rows):
 			next(csvreader, None)
 		for row in csvreader:
@@ -194,10 +223,27 @@ def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav, sample_name):
 			row = [angles[i], E_up[i], E_lp[i], E_vib, E_cav[i]]
 			filewriter.writerow(row)
 			i+=1
-
 	print('')
-	print('Wrote dispersion results to {}\n'.format(output))
+	print('Wrote dispersion results to {}'.format(output))
+	return 0
 
+def write_splitting_fit_to_file(least_squares_results, sample_name):
+	"""Takes results of nonlinear least squares fit for Rabi splitting
+	   (E_cav_0, Rabi, n, E_vib) and writes them to a file for 
+	   later plotting and whatnot."""
+	
+	E_cav_0, Rabi, n_, E_vib = least_squares_results
+	least_squares_file = sample_name + '_splitting_fit.csv'
+	output = os.path.join(os.path.abspath(args.output), least_squares_file)
+	
+	with open(output, 'w') as f:
+		filewriter = csv.writer(f, delimiter=',')
+		filewriter.writerow(['E_cav_0', E_cav_0])
+		filewriter.writerow(['Rabi', Rabi])
+		filewriter.writerow(['n', n_])
+		filewriter.writerow(['E_vib', E_vib])
+
+	print('Wrote results of nonlinear least squares to {}'.format(output))
 	return 0
 
 
@@ -239,11 +285,7 @@ def optimize_f(vars, angles, E_up_data, E_lp_data):
 	   coupled cavity-vibration system. We minimize this with experimental data.
 	   num_itr is just the number of iterations (2) for the upper and lower polariton."""
 	
-	E_0 = vars[0]  # Rabi splitting parameter
-	Rabi = vars[1]    # material refractive index
-	n_ = vars[2] # energy of vibrational excitation
-	E_vib = vars[3]   # initial cavity photon energy at 0 deg incidence
-
+	E_0, Rabi, n_, E_vib = vars
 	E_cav = E_0 / np.sqrt(1 - (np.sin(angles) / n_)**2)
 
 	# Lower polariton
@@ -259,13 +301,11 @@ def optimize_f(vars, angles, E_up_data, E_lp_data):
 	return err
 
 def optimize_df(vars, angles, E_up, E_lp):
-	"""The derivative w.r.t. each variable for optimize_f function to
-	   compute Jacobian."""
+	"""NOT IMPLEMENTED.
+	   The derivative w.r.t. each variable for optimize_f function to
+	   compute Jacobian in nonlinear least squares fit."""
 	   
-	E_0 = vars[0]  # Rabi splitting parameter
-	Rabi = vars[1]    # material refractive index
-	n_ = vars[2] # energy of vibrational excitation
-	E_vib = vars[3]   # initial cavity photon energy at 0 deg incidence
+	E_0, Rabi, n_, E_vib = vars
 		
 	root = np.sqrt(4*Rabi**2 + (E_0 - E_vib)**2)
 	E_cav = E_0 / np.sqrt(1 - (np.sin(angles) / n_)**2)
@@ -280,7 +320,7 @@ def optimize_df(vars, angles, E_up, E_lp):
 
 	# Negative solution
 	
-	jacobian = np.array([[dE_cav, dRabi], [dn, dE_vib]])
+	jacobian = np.array([dE_cav, dRabi, dn, dE_vib])
 	
 	return jacobian
 
@@ -298,9 +338,10 @@ def absorbance_fitting(wavenum, intensity, bounds):
 	lor = Lorentzian()
 	center = low_bound + 1/2 * (up_bound - low_bound)
 	lor.set_x0(center)
+	
+	p0=[lor.amplitude, lor.x0, lor.gamma, lor.y0]
 
-	popt, pconv = optimize.curve_fit(lor_1peak, k, I,
-								 p0=[lor.amplitude, lor.x0, lor.gamma, lor.y0])
+	popt, pconv = optimize.curve_fit(lor_1peak, k, I, p0)
 
 	lor.amplitude = popt[0]
 	lor.x0 = popt[1]
@@ -313,31 +354,34 @@ def absorbance_fitting(wavenum, intensity, bounds):
 def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	"""Fit the curve with data and Lorentzian class"""
 
-	fitting_func = lorz1.lor_func(wavenum)
+	fitting_func = lorz1.lor_func(wavenum)		
 
-	amp1 = lorz1.amplitude
-	x01 = lorz1.x0
-	g1 = lorz1.gamma
-	y01 = lorz1.y0
+# 	amp1 = lorz1.amplitude
+# 	x01 = lorz1.x0
+# 	g1 = lorz1.gamma
+# 	y01 = lorz1.y0
 	peak1_err = []
 
-	amp2 = lorz2.amplitude
-	x02 = lorz2.x0
-	g2 = lorz2.gamma
-	y02 = lorz2.y0
+# 	amp2 = lorz2.amplitude
+# 	x02 = lorz2.x0
+# 	g2 = lorz2.gamma
+# 	y02 = lorz2.y0
 	peak2_err = []
+
+	p0 = [lorz1.amplitude, lorz1.x0, lorz1.gamma, lorz1.y0,
+		  lorz2.amplitude, lorz2.x0, lorz2.gamma, lorz2.y0]
 
 	lor_fit = []
 
 	try:
-		popt, pconv = optimize.curve_fit(lor_2peak, wavenum, intensity,
-										 p0=[amp1, x01, g1, y01, amp2, x02, g2, y02])
+		popt, pcov = optimize.curve_fit(lor_2peak, wavenum, intensity, p0)
 
 		lorz1.amplitude, lorz1.x0, lorz1.gamma, lorz1.y0 = popt[0:4]
 		peak1_args = popt[0:4]
 		peak2_args = popt[4:8]
 		lorz2.amplitude, lorz2.x0, lorz2.gamma, lorz2.y0  = popt[4:8]
-		err = np.sqrt(np.diag(pconv))
+# 		print(np.diag(pcov))
+		err = np.sqrt(np.diag(pcov))
 		peak1_err = err[0:4]
 		peak2_err = err[4:8]
 
@@ -423,24 +467,18 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 	return angles, upper_pol, lower_pol, abs_lor.x0
 
 
-def splitting_least_squares(initial, angles, up, lp, E_e):
-	"""Takes polariton dispersion data and fits it to parabolic function.
-		Also takes vibration excitation energy.
-		up, lp are experimental data points. We compare calculated modes to these data
-		points and minimize the difference squared."""
+def splitting_least_squares(initial, angles, up, lp):
+	"""Takes initial guesses:
+	   	zero degree incidence cavity mode energy, 
+	   	Rabi splitting, 
+	   	material refractive index, 
+	   	molecular stretch mode (or exciton mode energy).
+	   Takes angles (in degrees), and experimental upper and lower polariton data.
+	   Returns nonlinear least squares fit."""
 
 	#TODO: validate cavity mode calculation
-	#TODO: User input is getting unwieldy. Put guesses, bounds into a yaml file.
-
-	n_guess = 1.50
-	E_0_guess = 2000
-	Rabi_guess = 100
-	E_vib_guess = 2000
-	
-	x0 = [E_0_guess, Rabi_guess, n_guess, E_vib_guess]
-
-	angles = [a * np.pi/180 for a in angles]
-
+	x0 = initial  # List of initial guesses, E_0, Rabi, refractive index, E_vib
+	angles = [a * np.pi/180 for a in angles]  # convert degrees to radians
 	optim = optimize.least_squares(optimize_f, x0, jac='2-point', args=(angles, up, lp))
 
 	return optim
@@ -537,15 +575,14 @@ def plot_polariton(x_, y_, fit_func):
 	ax.plot(x_, fit_func)
 
 
-
 def main():
 
 	spectral_data = args.spectral_data
-	bounds = []
-
-	if args.bounds:
-		bounds = args.bounds
-		bounds.sort()
+	config_params = args.config
+	bounds = get_bounds_from_yaml(config_params)
+	bounds.sort()
+	
+	initial_guesses = get_initial_from_yaml(config_params)
 
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
@@ -559,31 +596,33 @@ def main():
 		plot_absorbance(k, I, lor)
 
 	elif args.angleres:
-		print('Fitting angle-resolved data')
+		print('Analyzing angle-resolved data')
 		ang_data, abs_data = get_angle_data_from_dir(spectral_data)
 		sample, params = get_sample_params(spectral_data)
 		
 # 		write_angle_spec_to_file(ang_data, sample)
 		ang, up, lp, E_vib = lorentzian_parsing(ang_data, abs_data, bounds)
-		
-		splitting_fit = splitting_least_squares(ang, up, lp, E_vib)
+		#TODO: Also return the error
+		splitting_fit = splitting_least_squares(initial_guesses, ang, up, lp)
+
 		E_0 = splitting_fit.x[0]
 		Rabi = splitting_fit.x[1]
 		refractive_index = splitting_fit.x[2]
 		E_vib = splitting_fit.x[3]
 		
 		print(splitting_fit)
-		print("E_0 = ", dis.x[0])
-		print("Rabi = ", dis.x[1])
-		print("n = ", dis.x[2])
-		print("E_vib = ", dis.x[3])		
-
+		print("E_0 = ", E_0)
+		print("Rabi = ", Rabi)
+		print("n = ", refractive_index)
+		print("E_vib = ", E_vib)
+# 		print(ier)
 		
 		rad = [a * np.pi/180 for a in ang]  # convert degrees to radians
 		E_cav = cavity_mode_energy(rad, E_0, refractive_index)  # calculate cavity mode
 		
 		write_dispersion_to_file(ang, up, lp, E_vib, E_cav, sample)
-
+		write_splitting_fit_to_file(splitting_fit.x, sample)
+		
 	else:
 		print('No input data found')
 		sys.exit()
@@ -593,30 +632,29 @@ if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
 
-	spectrum_help = "csv file containing spectral information."
-	output_help = "path for output data directory (not a file)"
-	initial_help = "initial guesses for \
+	spectrum_help = "csv file or directory containing spectral information."
+	output_help = "Path for output data directory."
+	config_help = "Yaml file to set Lorentz fit bounds and \
+					least squares fit initial guesses for \
 					0 degree incidence cavity mode energy, \
 					Rabi splitting value, \
-					vibrational excitation energy in that order."
+					vibrational excitation energy."
 	cavity_help = "csv file containing angle-tuned cavity mode data."
 	cav_cen_help = "Initial guess for x position of mode center."
 	spec_dir_help = "Directory of angle-resolved polariton spectral data."
 	pol_help = "Boolean. Lorentzian fit for a single spectrum file."
 	abs_help = "Boolean indicating absorbance single peak data."
 	angle_help = "Boolean indicating directory contains angle-resolved data."
-	bound_help = "Pass two lower and upper bounds to truncate x-axis for fitting."
 	
 
 	parser.add_argument('spectral_data', help=spectrum_help)
 	parser.add_argument('output', help=output_help)
-	parser.add_argument('-I', '--initial_guess', help=initial_help)
+	parser.add_argument('-CF', '--config', help=config_help)
 	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
 	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
 	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
 	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
 	parser.add_argument('-T', '--angleres', action='store_true', help=angle_help)
-	parser.add_argument('-B', '--bounds', nargs='+', type=float, help=bound_help)
 
 	args = parser.parse_args()
 
