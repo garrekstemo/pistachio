@@ -32,30 +32,30 @@ class Lorentzian:
 			self.y0 = 0.
 		if gamma == None:
 			self.gamma = 30.
-	
+
 	def set_amplitude(self, new_amp):
 		self.amplitude = new_amp
-	
+
 	def set_x0(self, new_x0):
 		self.x0 = new_x0
-	
+
 	def set_y0(self, new_y0):
 		self.y0 = new_y0
-	
+
 	def set_gamma(self, new_gamma):
 		self.gamma = new_gamma
-	
+
 	def lor_func(self, x):
 		"""Lorentzian function for numpy array, x"""
 		lor = self.y0 + self.amplitude * self.gamma**2 / ((x - self.x0)**2 + self.gamma**2)
 		return lor
 
 
-# ====== Get and write data ====== #
+# ========== Get and write data ========== #
 
 def get_data(spectral_data):
 	"""Retrieve csv spectral data and store in array."""
-	
+
 	k = []
 	I = []
 	with open(spectral_data, 'r', errors='ignore') as spectrum:
@@ -68,12 +68,12 @@ def get_data(spectral_data):
 				wavenum = float(row[0])
 				Inten = float(row[1])
 				k.append(wavenum)
-				I.append(Inten)	
+				I.append(Inten)
 			else:
 				break
-				
+
 	return np.array(k), np.array(I)
-	
+
 def get_angle_data_from_dir(directory):
 	"""Extracts angle-resolved and absorbance data from each file in the supplied directory"""
 
@@ -83,7 +83,7 @@ def get_angle_data_from_dir(directory):
 
 	deg_str = 'deg'
 	abs_str = 'Abs'
-	
+
 	for spectrum in os.listdir(directory):
 		if spectrum.endswith('.csv'):
 			spec_file = str(directory) + '/' + str(spectrum)
@@ -94,14 +94,14 @@ def get_angle_data_from_dir(directory):
 				deg = int(spectrum[deg_s:deg_e])
 				wavenum, intensity = get_data(spec_file)
 				angle_data.append([deg, wavenum, intensity])
-				
+
 			# Get absorbance data if the file exists (it should always exist)
 			if abs_str in spectrum:
 				abs_k, abs_I = get_data(spec_file)
 
 	absorbance_data = [abs_k, abs_I]
 	angle_data.sort()
-	
+
 	return angle_data, absorbance_data
 
 
@@ -112,32 +112,32 @@ def get_sample_params(directory):
 	sample_name = directory.split('/') #last element is angle directory
 	sample_name = list(filter(None, sample_name))[-1]
 	params = sample_name.split('_')
-	
+
 	if 'in' in params:
 		params.remove('in')
 
 	return sample_name, params
-	
+
 def truncate_data(xdata, ydata, bound1, bound2):
 	"""Truncate data to isolate desired peaks for fitting"""
-	
+
 	i = 0
 	MAX = len(xdata)
 	lower_pt = 0
 	upper_pt = 0
-	
+
 	while i < MAX:
 		if np.round(xdata[i], 0) == float(bound1):
 			lower_pt = i
 		if np.round(xdata[i], 0) == float(bound2):
 			upper_pt = i
 		i+=1
-	
+
 	return xdata[lower_pt:upper_pt], ydata[lower_pt:upper_pt]
-	
+
 def write_angle_spec_to_file(angle_data_list, sample_name):
 	"""Takes angles list, wavenumber list, and intensity list.
-		Writes angle-resolved data to csv file with 
+		Writes angle-resolved data to csv file with
 		wavenumber in leftmost column (x-axis), and intensities
 		for each degree (y-axes)."""
 
@@ -160,34 +160,34 @@ def write_angle_spec_to_file(angle_data_list, sample_name):
 		while i < num_wavenums:
 			# Cycle through data points, first set up wavenumbers
 			row = [wavenumbers[i]]
-			
+
 			for item in angle_data_list:
 				# Cycle through data point for each degree, make a row
 				row.append(item[2][i])
-				
+
 			filewriter.writerow(row)
 			i+=1
-	
-	print('')	
+
+	print('')
 	print('Wrote angle-resolved spectra results to {}\n'.format(output))
-	
+
 	return 0
 
 def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav, sample_name):
 	"""Takes angles and energies (wavenumbers) for upper and lower
-	   polaritons, vibrational energy, calculated cavity mode 
+	   polaritons, vibrational energy, calculated cavity mode
 	   and writes all that data to a csv file.
 	   REMEMBER: change plot_dispersion in plots.py if output file format changes."""
 
-	dispersion_file = sample_name + '_dispersion_NEW.csv'
+	dispersion_file = sample_name + '_dispersion_TEST.csv'
 	output = os.path.join(os.path.abspath(args.output), dispersion_file)
 	with open(output, 'w') as f:
 		filewriter = csv.writer(f, delimiter=',')
-		header = ['Angle (deg)', 
+		header = ['Angle (deg)',
 				  'UP Wavenumber (cm-1)', 'LP Wavenumber (cm-1)',
 				  'Vibration mode (cm-1)', 'Cavity mode (cm-1)']
 		filewriter.writerow(header)
-		
+
 		i = 0
 		while i < len(angles):
 # 			print(i)
@@ -197,11 +197,12 @@ def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav, sample_name):
 
 	print('')
 	print('Wrote dispersion results to {}\n'.format(output))
-	
+
 	return 0
 
 
-# ====== Fitting Functions ====== #
+# ========== Fitting Functions ========== #
+
 
 def lor_1peak(x, A, x0, gamma, y0):
 	"""Lorentzian fitting function for a single peak.
@@ -216,31 +217,81 @@ def lor_2peak(x, A1, x0_1, gamma1, y0_1, A2, x0_2, gamma2, y0_2):
 	lor2 = y0_1 + A1 * gamma1**2 / ((x - x0_1)**2 + gamma1**2) \
 		   + y0_2 + A2 * gamma2**2 / ((x - x0_2)**2 + gamma2**2)
 	return lor2
-	
-def quadratic(k_, A, B):
-	"""Quadratic fitting function for dispersion curves"""
-	quad = A + B*k_**2
-	return quad
-	
-def coupled_energies(Ee, Ec, V, Ep, Em):
+
+def coupled_energies(Ee, Ec, V, sol):
 	"""Returns eigen-energies of the coupled Hamiltonian"""
-	f1 = -Ep +  0.5*((Ee + Ec) + np.sqrt(4*V**2 + (Ee - Ec)**2))
-	f2= -Em + 0.5*((Ee + Ec) - np.sqrt(4*V**2 + (Ee - Ec)**2))
-	return f1 + f2
 	
-def cavity_mode_energy(E0, angle, n_):
+	if sol == 1:
+		coupled_energy = 0.5*((Ee + Ec) + np.sqrt(4*V**2 + (Ee - Ec)**2))
+	elif sol == -1:
+		coupled_energy = 0.5*((Ee + Ec) - np.sqrt(4*V**2 + (Ee - Ec)**2))
+		
+	return coupled_energy
+
+def cavity_mode_energy(angle, E_0, n_):
 	"""E0 is some initial energy, angle is in radians, n_ is refractive index"""
-	E_cav = E0*np.sqrt((1 - (np.sin(angle)/n_)**2))
+	E_cav = E_0 / np.sqrt((1 - (np.sin(angle)/n_)**2))
 	return E_cav
+
+
+def optimize_f(vars, angles, E_up_data, E_lp_data):
+	"""Here, we write the eigenvalues of the energy Hamiltonian for 
+	   coupled cavity-vibration system. We minimize this with experimental data.
+	   num_itr is just the number of iterations (2) for the upper and lower polariton."""
 	
+	E_0 = vars[0]  # Rabi splitting parameter
+	Rabi = vars[1]    # material refractive index
+	n_ = vars[2] # energy of vibrational excitation
+	E_vib = vars[3]   # initial cavity photon energy at 0 deg incidence
+
+	E_cav = E_0 / np.sqrt(1 - (np.sin(angles) / n_)**2)
+
+	# Lower polariton
+	sol_neg = coupled_energies(E_vib, E_cav, Rabi, -1)		
+	err1 = sol_neg - E_lp_data
+
+	# Upper polariton
+	sol_pos = coupled_energies(E_vib, E_cav, Rabi, 1)
+	err2 = sol_pos - E_up_data
 	
-# ====== Fitting Procedures ====== #
+	err = np.concatenate((err1, err2))
+			
+	return err
+
+def optimize_df(vars, angles, E_up, E_lp):
+	"""The derivative w.r.t. each variable for optimize_f function to
+	   compute Jacobian."""
+	   
+	E_0 = vars[0]  # Rabi splitting parameter
+	Rabi = vars[1]    # material refractive index
+	n_ = vars[2] # energy of vibrational excitation
+	E_vib = vars[3]   # initial cavity photon energy at 0 deg incidence
+		
+	root = np.sqrt(4*Rabi**2 + (E_0 - E_vib)**2)
+	E_cav = E_0 / np.sqrt(1 - (np.sin(angles) / n_)**2)
+	temp = 1 / np.sqrt(1 - (np.sin(angles) / n_)**2)
+	
+	dRabi = 2*Rabi / root
+	
+	# Positive solution
+	dE_cav = 0.5 - 0.5 * (E_vib - E_cav) / root * temp
+	dE_vib = 0.5 + 0.5 * (E_vib - E_cav) / root
+	dn = (-1 + (E_vib - E_cav) / root) * E_0*np.sin(angles)**2 / (2 * np.power(n_, 3) * np.power(1 - np.sin(angles)**2 / n_**2, 1.5))
+
+	# Negative solution
+	
+	jacobian = np.array([[dE_cav, dRabi], [dn, dE_vib]])
+	
+	return jacobian
+
+
+# ========== Fitting Procedures ========== #
 
 def absorbance_fitting(wavenum, intensity, bounds):
 	"""Takes list of wavenumber and intensity lists for x, y axes.
 	   Takes bounds to truncate for fitting.
 	   Returns Lorentzian function class with fitted parameters for absorbance."""
-	
+
 	low_bound = bounds[0]
 	up_bound = bounds[1]
 	k, I = truncate_data(wavenum, intensity, low_bound, up_bound)
@@ -250,7 +301,7 @@ def absorbance_fitting(wavenum, intensity, bounds):
 
 	popt, pconv = optimize.curve_fit(lor_1peak, k, I,
 								 p0=[lor.amplitude, lor.x0, lor.gamma, lor.y0])
-	
+
 	lor.amplitude = popt[0]
 	lor.x0 = popt[1]
 	lor.gamma = popt[2]
@@ -269,7 +320,7 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	g1 = lorz1.gamma
 	y01 = lorz1.y0
 	peak1_err = []
-	
+
 	amp2 = lorz2.amplitude
 	x02 = lorz2.x0
 	g2 = lorz2.gamma
@@ -277,11 +328,11 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	peak2_err = []
 
 	lor_fit = []
-	
+
 	try:
 		popt, pconv = optimize.curve_fit(lor_2peak, wavenum, intensity,
 										 p0=[amp1, x01, g1, y01, amp2, x02, g2, y02])
-		
+
 		lorz1.amplitude, lorz1.x0, lorz1.gamma, lorz1.y0 = popt[0:4]
 		peak1_args = popt[0:4]
 		peak2_args = popt[4:8]
@@ -291,11 +342,11 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 		peak2_err = err[4:8]
 
 		lor_fit = lor_2peak(wavenum, *peak1_args, *peak2_args)
-		
+
 	except RuntimeError:
 		print("Something went wrong with finding a fit (RuntimeError).")
 		return 1
-	
+
 	amp1 = np.round([lorz1.amplitude, peak1_err[0]], 2)
 	center1 = np.round([lorz1.x0, peak1_err[1]], 2)
 	gamma1 = np.round([lorz1.gamma, peak1_err[2]], 2)
@@ -309,7 +360,7 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 # 	print("Amplitude = ", amp1[0], u'\u00b1', amp1[1])
 # 	print("Center = ", center1[0], u'\u00b1', center1[1])
 # 	print('sigma = ', gamma1[0], u'\u00b1', gamma1[1])
-# 	
+#
 # 	print('')
 # 	print('-'*10, 'Upper Polariton', '-'*10)
 # 	print("Amplitude = ", amp2[0], u'\u00b1', amp2[1])
@@ -326,24 +377,24 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 
 	low_bound = bounds[0]
 	up_bound = bounds[1]
-	
+
 	# Initialize classes to store Lorentzian fit data
 	lorz1 = Lorentzian()
 	lorz2 = Lorentzian()
-	
+
 	# Initial polariton position guesses
 	x01 = low_bound + 1/3 * (up_bound - low_bound)
 	x02 = low_bound + 2/3 * (up_bound - low_bound)
 	lorz1.set_x0(x01)
 	lorz2.set_x0(x02)
-	
+
 	angles = [] 	  				# List of angles from experiment
 	wavenumbers = angle_data[0][1]  # List of list of wavenumbers from experiment
 	intensities = [] 				# List of list of intensities from experiment
 	lor_fits = []  	  				# List of Lorentzian fits for each data set
 	upper_pol = []	  				# List of Lorentzian classes for upper polariton
 	lower_pol = []	  				# List of Lorentzian classes for lower polariton
-	
+
 	abs_k = absor_data[0]
 	abs_I = absor_data[1]
 	abs_lor = absorbance_fitting(abs_k, abs_I, bounds)
@@ -360,11 +411,11 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 		fit, lor_lower, lor_upper = polariton_fitting(wavenum, intensity, lorz1, lorz2)
 		lorz1 = lor_lower
 		lorz2 = lor_upper
-		
+
 # 		wavenumbers.append(wavenum)
 		intensities.append(intensity)
 		lor_fits.append(fit)
-		
+
 		# For now, just using the x0 position of the peak
 		upper_pol.append(lor_upper.x0)
 		lower_pol.append(lor_lower.x0)
@@ -372,35 +423,27 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 	return angles, upper_pol, lower_pol, abs_lor.x0
 
 
-def fit_dispersion(angles, up, lp, E_e, E_c_guess=None):
+def splitting_least_squares(initial, angles, up, lp, E_e):
 	"""Takes polariton dispersion data and fits it to parabolic function.
-		Also takes vibration excitation energy"""
+		Also takes vibration excitation energy.
+		up, lp are experimental data points. We compare calculated modes to these data
+		points and minimize the difference squared."""
 
 	#TODO: validate cavity mode calculation
-	popt_up, pconv_up = optimize.curve_fit(quadratic, angles, up)
-	popt_lp, pconv_lp = optimize.curve_fit(quadratic, angles, lp)
-	k = np.linspace(0, 20, 11)
+	#TODO: User input is getting unwieldy. Put guesses, bounds into a yaml file.
+
+	n_guess = 1.50
+	E_0_guess = 2000
+	Rabi_guess = 100
+	E_vib_guess = 2000
 	
-	E_up = quadratic(k, popt_up[0], popt_up[1])
-	E_lp = quadratic(k, popt_lp[0], popt_lp[1])
-	V = []
+	x0 = [E_0_guess, Rabi_guess, n_guess, E_vib_guess]
 
-	E_vib = np.full((len(k), ), E_e)
-	E_cav = []
-	n_guess = 1.5
+	angles = [a * np.pi/180 for a in angles]
 
-	if E_c_guess == None:
-		E_cav_guess = E_e  # Guess cavity mode wavenumber
-	else:
-		E_cav_guess = E_c_guess
-	
-	V_guess = 65  # Initial Rabi splitting guess
-	for a in angles:
-		a = np.pi/180 * a
-		
-		optimize.least_squares(x0 = [E_c_guess, n_guess, V_guess, E_e])
+	optim = optimize.least_squares(optimize_f, x0, jac='2-point', args=(angles, up, lp))
 
-	return E_cav
+	return optim
 
 
 def cavity_modes(bounds):
@@ -416,13 +459,13 @@ def cavity_modes(bounds):
 				deg_e = spectrum.find('_', deg_s)
 				deg = float(spectrum[deg_s:deg_e])
 
-				degree.append([deg, spec_file])	
+				degree.append([deg, spec_file])
 	degree.sort()
 
 	low_bound = bounds[0]
 	up_bound = bounds[1]
 	x0 = float(args.cav_center)
-	
+
 	lor = Lorentzian()
 	lor.set_x0(x0)
 	angles = [d[0] for d in degree]
@@ -433,15 +476,15 @@ def cavity_modes(bounds):
 
 	for d in degree:
 		spectrum_file = d[1]
-		
+
 		wavenum, intensity = get_data(spectrum_file)
-		
+
 		# --- These are for simulated data from Pistachio --- #
 # 		wavenum = [np.power(10, 4)/w for w in wavenum]
 # 		wavenum = list(reversed(wavenum))
 # 		intensity = list(reversed(intensity))
 		# --------------------------------------------------- #
-		
+
 		wavenum, intensity = truncate_data(wavenum, intensity, low_bound, up_bound)
 
 		try:
@@ -470,20 +513,20 @@ def plot_absorbance(k, I, lor, bounds):
 	up_bound = bounds[1]
 
 	fig, (ax, axf) = plt.subplots(2)
-	
+
 	ax.plot(k, I)
 	ax.set_xlim([int(up_bound), int(low_bound)])
-	
+
 	axf.plot(k, lor.lor_func(k))
 	axf.set_xlim([int(up_bound), int(low_bound)])
-	
+
 	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)')
 	ax.set_ylabel('Transmission (%)')
 	axf.set_xlabel(r'Wavenumber (cm$^{-1}$)')
 	axf.set_ylabel('Transmission (%)')
-	
+
 	plt.show()
-	
+
 	return 0
 
 def plot_polariton(x_, y_, fit_func):
@@ -499,31 +542,48 @@ def main():
 
 	spectral_data = args.spectral_data
 	bounds = []
-		
+
 	if args.bounds:
 		bounds = args.bounds
 		bounds.sort()
-	
+
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
 		x, y, fit = polariton_fitting(spectral_data)
 		plot_polariton(x, y, fit)
-		
+
 	elif args.absorbance:
 		print('Fitting single-peak Lorentzian')
 		k, I = get_data(spectral_data)
 		lor = absorbance_fitting(k, I)
 		plot_absorbance(k, I, lor)
-		
+
 	elif args.angleres:
 		print('Fitting angle-resolved data')
 		ang_data, abs_data = get_angle_data_from_dir(spectral_data)
 		sample, params = get_sample_params(spectral_data)
-		write_angle_spec_to_file(ang_data, sample)
-		ang, up, lp, E_vib = lorentzian_parsing(ang_data, abs_data, bounds)
-		E_cav = fit_dispersion(ang, up, lp, E_vib)
-		write_dispersion_to_file(ang, up, lp, E_vib, E_cav, sample)
 		
+# 		write_angle_spec_to_file(ang_data, sample)
+		ang, up, lp, E_vib = lorentzian_parsing(ang_data, abs_data, bounds)
+		
+		splitting_fit = splitting_least_squares(ang, up, lp, E_vib)
+		E_0 = splitting_fit.x[0]
+		Rabi = splitting_fit.x[1]
+		refractive_index = splitting_fit.x[2]
+		E_vib = splitting_fit.x[3]
+		
+		print(splitting_fit)
+		print("E_0 = ", dis.x[0])
+		print("Rabi = ", dis.x[1])
+		print("n = ", dis.x[2])
+		print("E_vib = ", dis.x[3])		
+
+		
+		rad = [a * np.pi/180 for a in ang]  # convert degrees to radians
+		E_cav = cavity_mode_energy(rad, E_0, refractive_index)  # calculate cavity mode
+		
+		write_dispersion_to_file(ang, up, lp, E_vib, E_cav, sample)
+
 	else:
 		print('No input data found')
 		sys.exit()
@@ -535,6 +595,10 @@ if __name__ == '__main__':
 
 	spectrum_help = "csv file containing spectral information."
 	output_help = "path for output data directory (not a file)"
+	initial_help = "initial guesses for \
+					0 degree incidence cavity mode energy, \
+					Rabi splitting value, \
+					vibrational excitation energy in that order."
 	cavity_help = "csv file containing angle-tuned cavity mode data."
 	cav_cen_help = "Initial guess for x position of mode center."
 	spec_dir_help = "Directory of angle-resolved polariton spectral data."
@@ -543,15 +607,17 @@ if __name__ == '__main__':
 	angle_help = "Boolean indicating directory contains angle-resolved data."
 	bound_help = "Pass two lower and upper bounds to truncate x-axis for fitting."
 	
+
 	parser.add_argument('spectral_data', help=spectrum_help)
 	parser.add_argument('output', help=output_help)
+	parser.add_argument('-I', '--initial_guess', help=initial_help)
 	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
 	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
 	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
 	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
 	parser.add_argument('-T', '--angleres', action='store_true', help=angle_help)
 	parser.add_argument('-B', '--bounds', nargs='+', type=float, help=bound_help)
-	
+
 	args = parser.parse_args()
-	
+
 	main()
