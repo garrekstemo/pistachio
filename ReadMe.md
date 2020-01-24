@@ -27,7 +27,7 @@ Config files are stored in the .yaml format as a device with a configuration for
 
 Each layer requires a material name, thickness (in nanometers), and a path to a file containing the refractive index for each wavelength. If there is no file, then the user must input the index of refraction and extinction coefficient; in this case, the user should put `None` next to `wavelength:`.
 
-#### Example config file
+#### Example transfer matrix config file
 
 ```
 num_points: 1000
@@ -77,7 +77,7 @@ When in doubt, run `python transfer_matrix.py -h` to see the types and order of 
 
 ### Plotting results
 
-The output is a .csv file, so the user can use any plotting and analysis software. Basic plotting is provided via the included `plotting.py`. It will take the output file and generate a simple transmittance, reflectance, and absorbance plot. This may be made more sophisticated in the future.
+The output is a .csv file, so the user can use any plotting and analysis software. Basic plotting is provided via the included `plots.py`. It will take the output file and generate a simple transmittance, reflectance, and absorbance plot. This may be made more sophisticated in the future.
 
 ### Things that don't work yet
 
@@ -85,10 +85,7 @@ The keen eye will notice that there is a field profile function in the transfer 
 
 ## Lorentzian fitting and Dispersion Curves
 
-This is a bit of a mess right now, with way too many command-line flags and
-code that is cobbled together. Some functions work and others need fine-tuning by the user. See the help (`polariton_processing.py -h`) documentation for run details.
-
-This program processes and analyzes spectral data, specifically light-matter coupling FTIR experiments. Correct processing is dependent on a particular file and folder naming scheme. Input files must be .csv.
+This program processes and analyzes spectral data, specifically light-matter coupling FTIR experiments.
 
 There are a few different flags that can be used to specify the type of analysis you want to do. They are: 
 
@@ -97,7 +94,11 @@ There are a few different flags that can be used to specify the type of analysis
 3. bare vibration mode -> plot the spectrum and perform fitting
 4. single polariton spectrum -> plot and perform fitting
 
-Command line arguments include, input file or directory, output directory, upper and lower wave number bound (for truncating data to perform fitting). 
+Command line arguments include, yaml config file, input file or directory, and output directory, with the appropriate flags. An example input might look like the following:
+
+`python polariton_processing.py -CF /yaml_config.yaml -T /Users/../data/out/1.0M_WCO6_in_Hexane /Users/../data/out/` 
+
+Here we have used the `-CF` flag to denote a yaml config file containing the wavenumber bounds (for truncating data before doing a Lorentzian fit) and initial guesses for performing nonlinear least squares fitting on the dispersion data.
 
 
 ### How to name files and folders for experiments
@@ -110,40 +111,65 @@ For example:
 
 `1.5M_WCO6_in_hexane`
 
-The directory name is used to prevent the program from overwriting data when going through each angle. If using a neat liquid, add an extra underscore after the name. This is not an ideal solution, but this is what I've got at this point. So you would name it `Neat_WCO6_`, for example.
+The directory name is used to prevent the program from overwriting data when going through each angle.
 
-Angle-resolved csv files must contain the string `degNUM`where `NUM` is an integer. For example, `deg2` for incident angle 2 degrees.
-
-Inside this directory should also be an absorbance csv file containing the target coupling band. This file should start with the string `Abs`.
+Angle-resolved csv files must contain the string `degNUM`where `NUM` is an integer. For example, `deg2` for incident angle 2 degrees. Inside this directory should also be an absorbance csv file containing the target coupling band. This file should start with the string `Abs`.
 
 Unfortunately, naming is done manually for most experimental setups so the user must take care to name their raw data carefully. No attempt is made by the program to guess misspellings, etc.
 
 The program currently does not handle vacant cavity data, but this might be added in the future.
 
+### Config file format
 
-### Angle-resolved polariton spectral data
+There is also a yaml config file for analyzing polariton data. FTIR analysis is performed over a wide range of wavelengths, making any curve fitting impossible without truncating the raw data first. The user is spared from doing this themselves by simply including upper and lower bounds in the config file. The next item in the config file are initial guesses for the least squares fitting algorithm, which includes the 0-degree incident cavity mode energy, Rabi splitting parameter, refractive index, and vibrational mode energy. For now, the energies are implemented in eV units. A `units` parameter is also part of this section for future unit conversion, but it does not really do much right now. Yes, it's a little confusing that bounds are in inverse centimeters and the least squares guesses are in eV, but this is a work in progress.
 
-Angle-resolved polariton data will include a Lorentzian[^3] double peak and multiple files representing each angle at which an experiment was performed. The directory may include absorbance data for the isolated target sample.
+#### Example polariton config file
 
-Each angle-resolved data must have the string `degx` somewhere in the file name, where `x` is the angle. The absorbance data should start with the string `Abs` so that can be properly processed.
+```
+bounds:
+	lower: 2000
+	upper: 2400
 
-The program will fit the absorbance data with a single-peak Lorentzian function and the angle-resolved data with a double-peak Lorentzian function. The peak wave numbers are then used to create dispersion curves for the upper and lower polaritons, as well as the vibration mode. The cavity mode is calculated using the 2x2 Hamiltonian
+least_squares_guesses:
+	units: 'eV'
+	E_cav_0: 0.275
+	Rabi_splitting: 0.006
+	refractive_index: 1.53
+	E_exc: 0.275
+```
+
+
+### Dispersion curve generation
+
+Angle-tuned polariton data will include a Lorentzian[^3] double peak and multiple files representing each angle at which an experiment was performed. The directory may include absorbance data for the isolated target sample.
+
+Each angle-resolved data must have the string `degx` somewhere in the file name, where `x` is the angle as an integer. The absorbance data should start with the string `Abs` so that can be read properly.
+
+The program will fit the absorbance data with a single-peak Lorentzian function and the angle-resolved data with a double-peak Lorentzian function. The peak wave numbers are then used to create dispersion curves for the upper and lower polaritons, as well as the vibration mode. 
+
+### Nonlinear least squares implementation
+
+Once the peak finding algorithm has been applied and the data reorganized into dispersion data, we fit the upper and lower polariton experimental data to the positive and negative eigenvalues of the 2x2 Hamiltonian,
 
 \\[
-H = 
-\left(
-\begin{matrix}
-\epsilon_v & \hbar \Omega_i/2 \\
-\hbar \Omega_i/2 & \epsilon_c
-\end{matrix}
-\right),
+H = \left( \begin{matrix}
+E_v & \hbar \Omega_i/2 \\
+\hbar \Omega_i/2 & E_c
+\end{matrix} \right),
 \\]
-where $\epsilon_v$ and $\epsilon_c$ are the vibration and cavity modes, respectively, and $\Omega_i$ is the vacuum Rabi splitting. Diagonalizing the Hamiltonian gives the eigenvalues corresponding the the upper and lower polariton modes that are found experimentally, leaving $\epsilon_c$ to be calculated[^2]. These calculations are still not quite perfectly implemented and are not to be trusted, but they do not produce Error messages!
+where $\epsilon_v$ and $\epsilon_c$ are the vibration and cavity modes, respectively, and $\Omega_i$ is the vacuum Rabi splitting. Diagonalizing the Hamiltonian gives the eigenvalues corresponding the the upper and lower polariton modes[^2]. Further, we use the equation
 
-More details on calculation methods later ....
+\\[
+E_c = E_0\left(1 - \frac{\sin^2(\theta)}{n_\text{eff}^2} \right)^{-1/2},
+\\]
 
-Anyway, this option will output a csv will all the data needed to produce dispersion curves for the polariton modes, vibration mode, and cavity mode all in one plot. Proper plotting functionality coming later.
+where $\theta$ is the light incident angle, $E_0$ is the cavity mode energy at 0 degree incidence, and $n_\text{eff}$ is the effective refractive index. Here we do not take into account the angle-dependence of the index of refraction. We use the default SciPy least squares algorithm with initial guesses. For now, the output is in eV. In the future, the entire program may be made dimensionless to help with scaling and user unit preferences. The fitting gives reasonable results for these parameters, with slightly more variance in $n_\text{eff}$ with noisy and limited data.
 
+Once fitting is complete, the polariton, cavity mode, and vibrational mode dispersion data is written to a file. The plotting program can use this output file to produce a ready-made plot for viewing.
+
+## Plotting
+
+Plotting processed experimental data is relatively robust. Processed data from `polariton_processing.py` will have file names that can be read by `plots.py`, which can generate some plots automatically. The user will need to manually adjust xlim and slim, as well as labels. This is a pain, but shouldn't be too hard to do.
 
 ## How to install Pistachio
 
