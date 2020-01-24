@@ -3,7 +3,7 @@
 Author: Garrek Stemo\
 Affiliation: Nara Institute of Science and Technology\
 Date Created: July 5, 2019\
-Updated: December 12, 2019
+Updated: January 24, 2019
 
 Pistachio is a suite of software for analysis of strongly coupled light-matter phenomenon.
 It includes a transfer matrix program based on Optical Waves in Layered Media by Pochi Yeh[^1] 
