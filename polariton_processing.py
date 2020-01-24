@@ -18,11 +18,12 @@ import csv
 import numpy as np
 from scipy import optimize
 from scipy.interpolate import interp1d
+from scipy import constants
 import matplotlib.pyplot as plt
 from ruamel_yaml import YAML
+import pdb
 
 yaml = YAML()
-
 
 
 class Lorentzian:
@@ -55,6 +56,34 @@ class Lorentzian:
 		return lor
 
 
+# ========== Unit conversions ========== #
+
+def deg_to_rad(angles):
+	"""Convert degrees to radians."""
+	angles = [a * np.pi/180 for a in angles]
+	return angles
+
+def wavenum_to_wavelen(wavenum):
+	"""cm^-1 to micrometers"""
+	wavelen = (1/wavenum) * 10000
+	return wavelen
+	
+def joule_to_ev(joule):
+	ev = joule / constants.elementary_charge
+	return ev
+	
+def wavenum_to_joule(wavenum):
+	"""cm^-1 to photon energy"""
+	cm_to_m = 1/100
+	joules = constants.h * constants.c * (wavenum / cm_to_m)
+	return joules
+
+def wavenum_to_ev(wavenum):
+	"""cm^-1 to eV units"""
+	energy = wavenum_to_joule(wavenum)
+	ev = joule_to_ev(energy)
+	return ev
+
 # ========== Get and write params and data ========== #
 
 def get_bounds_from_yaml(yaml_config):
@@ -73,13 +102,14 @@ def get_initial_from_yaml(yaml_config):
 		
 	with open(yaml_config, 'r') as yml:
 		config = yaml.load(yml)
-		
+	
+	initial_units = config['least_squares_guesses']['units']
 	E_0_guess = config['least_squares_guesses']['E_cav_0']
 	Rabi_guess = config['least_squares_guesses']['Rabi_splitting']
 	n_guess = config['least_squares_guesses']['refractive_index']
 	E_vib_guess = config['least_squares_guesses']['E_exc']
 	
-	return [E_0_guess, Rabi_guess, n_guess, E_vib_guess]
+	return [E_0_guess, E_vib_guess, Rabi_guess, n_guess], initial_units
 	
 
 def get_data(spectral_data):
@@ -208,7 +238,7 @@ def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav, sample_name):
 	   and writes all that data to a csv file.
 	   REMEMBER: change plot_dispersion in plots.py if output file format changes."""
 
-	dispersion_file = sample_name + '_dispersion_TEST.csv'
+	dispersion_file = sample_name + '_dispersion.csv'
 	output = os.path.join(os.path.abspath(args.output), dispersion_file)
 	with open(output, 'w') as f:
 		filewriter = csv.writer(f, delimiter=',')
@@ -227,17 +257,18 @@ def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav, sample_name):
 	print('Wrote dispersion results to {}'.format(output))
 	return 0
 
-def write_splitting_fit_to_file(least_squares_results, sample_name):
+def write_splitting_fit_to_file(least_squares_results, sample_name, units):
 	"""Takes results of nonlinear least squares fit for Rabi splitting
 	   (E_cav_0, Rabi, n, E_vib) and writes them to a file for 
 	   later plotting and whatnot."""
 	
-	E_cav_0, Rabi, n_, E_vib = least_squares_results
+	E_cav_0, E_vib, Rabi, n_ = least_squares_results
 	least_squares_file = sample_name + '_splitting_fit.csv'
 	output = os.path.join(os.path.abspath(args.output), least_squares_file)
 	
 	with open(output, 'w') as f:
 		filewriter = csv.writer(f, delimiter=',')
+		filewriter.writerow(['units', units])  #TODO: What units to write?
 		filewriter.writerow(['E_cav_0', E_cav_0])
 		filewriter.writerow(['Rabi', Rabi])
 		filewriter.writerow(['n', n_])
@@ -264,64 +295,74 @@ def lor_2peak(x, A1, x0_1, gamma1, y0_1, A2, x0_2, gamma2, y0_2):
 		   + y0_2 + A2 * gamma2**2 / ((x - x0_2)**2 + gamma2**2)
 	return lor2
 
-def coupled_energies(Ee, Ec, V, sol):
-	"""Returns eigen-energies of the coupled Hamiltonian"""
+def coupled_energies(theta, E0, Ee, Rabi, n_eff, branch=0):
 	
-	if sol == 1:
-		coupled_energy = 0.5*((Ee + Ec) + np.sqrt(4*V**2 + (Ee - Ec)**2))
-	elif sol == -1:
-		coupled_energy = 0.5*((Ee + Ec) - np.sqrt(4*V**2 + (Ee - Ec)**2))
+	Ec = E0 / np.sqrt(1 - (np.sin(theta) /n_eff)**2)
+	
+	if branch == 0:
+		E_coupled = 0.5*(Ee + Ec) - 0.5*np.sqrt(4*Rabi**2 + (Ee - Ec)**2)
 		
-	return coupled_energy
+	elif branch == 1:
+		E_coupled = 0.5*(Ee + Ec) + 0.5*np.sqrt(4*Rabi**2 + (Ee - Ec)**2)
+	
+	return E_coupled
 
-def cavity_mode_energy(angle, E_0, n_):
-	"""E0 is some initial energy, angle is in radians, n_ is refractive index"""
-	E_cav = E_0 / np.sqrt((1 - (np.sin(angle)/n_)**2))
+def cavity_mode_energy(angle, E_0, n_eff):
+	"""E0 is some initial (0 deg incidence) cavity mode energy, angle is in radians,
+	   n_eff is the effective refractive index of the material."""
+	E_cav = E_0 / np.sqrt(1 - (np.sin(angle) /n_eff)**2)
 	return E_cav
 
-
-def optimize_f(vars, angles, E_up_data, E_lp_data):
+def error_f(x, theta, Elp_data, Eup_data):
 	"""Here, we write the eigenvalues of the energy Hamiltonian for 
-	   coupled cavity-vibration system. We minimize this with experimental data.
-	   num_itr is just the number of iterations (2) for the upper and lower polariton."""
-	
-	E_0, Rabi, n_, E_vib = vars
-	E_cav = E_0 / np.sqrt(1 - (np.sin(angles) / n_)**2)
+	   coupled cavity-vibration system. We minimize this with experimental data."""
 
-	# Lower polariton
-	sol_neg = coupled_energies(E_vib, E_cav, Rabi, -1)		
-	err1 = sol_neg - E_lp_data
-
-	# Upper polariton
-	sol_pos = coupled_energies(E_vib, E_cav, Rabi, 1)
-	err2 = sol_pos - E_up_data
+	En = coupled_energies(theta, *x, branch=0)
+	Ep = coupled_energies(theta, *x, branch=1)
 	
+	err1 = En - Elp_data
+	err2 = Ep - Eup_data	
 	err = np.concatenate((err1, err2))
 			
 	return err
 
-def optimize_df(vars, angles, E_up, E_lp):
-	"""NOT IMPLEMENTED.
-	   The derivative w.r.t. each variable for optimize_f function to
+def optimize_df(x, theta, E_up, E_lp):
+	"""The derivative w.r.t. each variable for optimize_f function to
 	   compute Jacobian in nonlinear least squares fit."""
-	   
-	E_0, Rabi, n_, E_vib = vars
-		
-	root = np.sqrt(4*Rabi**2 + (E_0 - E_vib)**2)
-	E_cav = E_0 / np.sqrt(1 - (np.sin(angles) / n_)**2)
-	temp = 1 / np.sqrt(1 - (np.sin(angles) / n_)**2)
 	
-	dRabi = 2*Rabi / root
+	n = len(2*theta)
+	m = len(x)
+	jacobian = np.zeros((n, m))   
 	
-	# Positive solution
-	dE_cav = 0.5 - 0.5 * (E_vib - E_cav) / root * temp
-	dE_vib = 0.5 + 0.5 * (E_vib - E_cav) / root
-	dn = (-1 + (E_vib - E_cav) / root) * E_0*np.sin(angles)**2 / (2 * np.power(n_, 3) * np.power(1 - np.sin(angles)**2 / n_**2, 1.5))
+	E_0, Rabi, n_eff, E_vib = x
+	E_cav = E_0 / np.sqrt(1 - np.sin(theta)**2 /n_eff**2)  #Can probably use the function
+	
+	dEc_dE0 = 1 / np.sqrt(1 - (np.sin(theta)**2 / n_eff**2))
+	dEc_dn = E_0 * np.sin(theta)**2 / (n_eff*n_eff*n_eff * np.power((1 - (np.sin(theta)**2 / n_eff**2)), 1.5))
+	root = np.sqrt(4*Rabi**2 + (E_vib - E_cav)**2)
 
-	# Negative solution
+	# Negative solution	
+	dE_vib_neg = 0.5 - (0.5*(E_vib - E_cav) / root)
+	dRabi_neg = -2*Rabi / root
+	dE_0_neg = (0.5 + 0.5*(E_vib - E_cav) / root) * dEc_dE0
+	dn_neg = (-0.5 - 0.5*(E_vib - E_cav) / root) * dEc_dn
+
+	# Positive solution
+	dE_vib_pos = 0.5 + (0.5*(E_vib - E_cav) / root)
+	dRabi_pos = 2*Rabi / root
+	dE_0_pos = (0.5 - 0.5*(E_vib - E_cav) / root) * dEc_dE0
+	dn_pos = (-0.5 + 0.5*(E_vib - E_cav) / root) * dEc_dn
+
+	dE_vib = np.concatenate((dE_vib_neg, dE_vib_pos))
+	dRabi = np.concatenate((dRabi_neg, dRabi_pos))
+	dE_0 = np.concatenate((dE_0_neg, dE_0_pos))
+	dn_eff = np.concatenate((dn_neg, dn_pos))
 	
-	jacobian = np.array([dE_cav, dRabi, dn, dE_vib])
-	
+	jacobian[:,0] = dE_0
+	jacobian[:,1] = dRabi
+	jacobian[:,2] = dn_eff
+	jacobian[:,3] = dE_vib
+
 	return jacobian
 
 
@@ -436,9 +477,9 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 	wavenumbers = angle_data[0][1]  # List of list of wavenumbers from experiment
 	intensities = [] 				# List of list of intensities from experiment
 	lor_fits = []  	  				# List of Lorentzian fits for each data set
-	upper_pol = []	  				# List of Lorentzian classes for upper polariton
 	lower_pol = []	  				# List of Lorentzian classes for lower polariton
-
+	upper_pol = []	  				# List of Lorentzian classes for upper polariton
+	
 	abs_k = absor_data[0]
 	abs_I = absor_data[1]
 	abs_lor = absorbance_fitting(abs_k, abs_I, bounds)
@@ -461,26 +502,33 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 		lor_fits.append(fit)
 
 		# For now, just using the x0 position of the peak
-		upper_pol.append(lor_upper.x0)
 		lower_pol.append(lor_lower.x0)
+		upper_pol.append(lor_upper.x0)
 
-	return angles, upper_pol, lower_pol, abs_lor.x0
+	return angles, lower_pol, upper_pol, abs_lor.x0
 
 
-def splitting_least_squares(initial, angles, up, lp):
-	"""Takes initial guesses:
-	   	zero degree incidence cavity mode energy, 
-	   	Rabi splitting, 
-	   	material refractive index, 
-	   	molecular stretch mode (or exciton mode energy).
+def splitting_least_squares(initial, angles, Elp, Eup):
+	"""Takes initial guesses:[E_cav_0, E_vib, Rabi, n].
 	   Takes angles (in degrees), and experimental upper and lower polariton data.
 	   Returns nonlinear least squares fit."""
 
-	#TODO: validate cavity mode calculation
-	x0 = initial  # List of initial guesses, E_0, Rabi, refractive index, E_vib
-	angles = [a * np.pi/180 for a in angles]  # convert degrees to radians
-	optim = optimize.least_squares(optimize_f, x0, jac='2-point', args=(angles, up, lp))
+	angles = deg_to_rad(angles)
+	#TODO: What units do we really want here? Unitless to convert later?
+	Elp = [wavenum_to_ev(i) for i in Elp]
+	Eup = [wavenum_to_ev(i) for i in Eup]
 
+# 	vib_lb = Elp[-1]
+# 	vib_ub = Eup[0]
+# 	E0_lb = Elp[0]
+# 	E0_ub = Eup[0]
+# 	lb = [E0_lb, 0., 1.5, vib_lb]
+# 	ub = [E0_ub, 0.5, 2.0, vib_ub]
+# 	bound_vals = (lb, ub)
+	print("Performing default nonlinear least squares fit.")
+	optim = optimize.least_squares(error_f,
+								   x0=initial,
+								   args=(angles, Elp, Eup))
 	return optim
 
 
@@ -491,9 +539,10 @@ def cavity_modes(bounds):
 	for spectrum in os.listdir(cavity_dir):
 		if spectrum.endswith('.csv'):
 			spec_file = str(cavity_dir) + '/' + str(spectrum)
-			if 'deg' in spectrum:
+			deg_str = 'deg'
+			if deg_str in spectrum:
 				# Get the angle of the measurement from file string
-				deg_s = spectrum.find('deg') + 3
+				deg_s = spectrum.find(deg_str) + len(deg_str)
 				deg_e = spectrum.find('_', deg_s)
 				deg = float(spectrum[deg_s:deg_e])
 
@@ -574,7 +623,6 @@ def plot_polariton(x_, y_, fit_func):
 	ax.plot(x_, y_)
 	ax.plot(x_, fit_func)
 
-
 def main():
 
 	spectral_data = args.spectral_data
@@ -582,7 +630,7 @@ def main():
 	bounds = get_bounds_from_yaml(config_params)
 	bounds.sort()
 	
-	initial_guesses = get_initial_from_yaml(config_params)
+
 
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
@@ -597,31 +645,34 @@ def main():
 
 	elif args.angleres:
 		print('Analyzing angle-resolved data')
+		initial_guesses, init_units = get_initial_from_yaml(config_params)
 		ang_data, abs_data = get_angle_data_from_dir(spectral_data)
 		sample, params = get_sample_params(spectral_data)
-		
+
 # 		write_angle_spec_to_file(ang_data, sample)
-		ang, up, lp, E_vib = lorentzian_parsing(ang_data, abs_data, bounds)
+		ang, Elp, Eup, E_vib = lorentzian_parsing(ang_data, abs_data, bounds)
 		#TODO: Also return the error
-		splitting_fit = splitting_least_squares(initial_guesses, ang, up, lp)
+		splitting_fit = splitting_least_squares(initial_guesses, ang, Elp, Eup)
 
 		E_0 = splitting_fit.x[0]
-		Rabi = splitting_fit.x[1]
-		refractive_index = splitting_fit.x[2]
-		E_vib = splitting_fit.x[3]
+		E_vib = splitting_fit.x[1]
+		Rabi = splitting_fit.x[2]
+		refractive_index = splitting_fit.x[3]
 		
-		print(splitting_fit)
-		print("E_0 = ", E_0)
-		print("Rabi = ", Rabi)
-		print("n = ", refractive_index)
-		print("E_vib = ", E_vib)
-# 		print(ier)
+# 		print(splitting_fit)
+		print("Initial guesses ({}): ".format(init_units), initial_guesses)
+		print("Fitting results:")
+		print("E_0 =", E_0)
+		print("E_vib =", E_vib)
+		print("Rabi =", Rabi)
+		print("n =", refractive_index)
+
 		
 		rad = [a * np.pi/180 for a in ang]  # convert degrees to radians
 		E_cav = cavity_mode_energy(rad, E_0, refractive_index)  # calculate cavity mode
 		
-		write_dispersion_to_file(ang, up, lp, E_vib, E_cav, sample)
-		write_splitting_fit_to_file(splitting_fit.x, sample)
+		write_dispersion_to_file(ang, Eup, Elp, E_vib, E_cav, sample)
+		write_splitting_fit_to_file(splitting_fit.x, sample, init_units)
 		
 	else:
 		print('No input data found')

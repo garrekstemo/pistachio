@@ -21,7 +21,11 @@ def get_splitting_results(splitting_file):
 	with open(splitting_file, 'r') as sf:
 		csvreader = csv.reader(sf)
 		for row in csvreader:
-			params[row[0]] = float(row[1])
+			try:
+				params[row[0]] = float(row[1])
+			except ValueError:
+				params[row[0]] = row[1]
+	
 	return params
 		
 def wavenum_to_wavelen(wavenum):
@@ -41,7 +45,7 @@ def wavenum_to_joule(wavenum):
 		
 
 def set_units(unit_data):
-
+	#TODO: Handle arbitrary units from input data.
 	# Assume input unit_data in cm^-1
 	cm_to_m = 1/100
 	energy = [wavenum_to_joule(d) for d in unit_data]
@@ -277,35 +281,43 @@ def plot_dispersion(file_prefix, dispersion_file):
 	if args.splitting_results:
 	
 		params = get_splitting_results(args.splitting_results)
-		E_cav_0 = set_units([params['E_cav_0']])[0]
-		ref_ind = params['n']
-		Rabi = set_units([params['Rabi']])[0]
-		E_vib = set_units([params['E_vib']])[0]
+# 		if params['units'].lower() != 'ev':
+# 		E_cav_0 = set_units([params['E_cav_0']])[0]
+		E_cav_0 = params['E_cav_0']
+		n_eff = params['n']
+# 		Rabi = set_units([params['Rabi']])[0]
+		Rabi = params['Rabi']
+# 		E_vib = set_units([params['E_vib']])[0]
+		Ev = params['E_vib']
 		
-		sim_points = 100
-		angles_sim = np.linspace(0, 35, sim_points)
-		rad_sim = [a * np.pi/180 for a in angles_sim]
-		cavity_sim = pp.cavity_mode_energy(rad_sim, E_cav_0, ref_ind)
-		E_up = pp.coupled_energies(E_vib, cavity_sim, Rabi, 1)
-		E_lp = pp.coupled_energies(E_vib, cavity_sim, Rabi, -1)
+		n_points = 100
+		t_min = -35
+		t_max = 35
+		theta_plot = np.linspace(t_min, t_max, n_points)
+		theta_rad = [a * np.pi/180 for a in theta_plot]
+
+		Ec = pp.cavity_mode_energy(theta_rad, E_cav_0, n_eff)
+		E_lp = pp.coupled_energies(theta_rad, E_cav_0, Ev, Rabi, n_eff, 0)
+		E_up = pp.coupled_energies(theta_rad, E_cav_0, Ev, Rabi, n_eff, 1)
+
 		
-		e_vib_plot = np.full((sim_points, ), E_vib)
-		ax.plot(angles_sim, cavity_sim, color=color2)
-		ax.plot(angles_sim, E_up, color=color2)
-		ax.plot(angles_sim, E_lp, color=color2)
-		ax.plot(angles_sim, e_vib_plot, linestyle='dashed', color=color2)
+		e_vib_plot = np.full((n_points, ), Ev)
+		ax.plot(theta_plot, Ec, color=color2)
+		ax.plot(theta_plot, E_up, color=color2)
+		ax.plot(theta_plot, E_lp, color=color2)
+		ax.plot(theta_plot, e_vib_plot, linestyle='dashed', color=color2)
 		
 		textstr = '\n'.join((
 				   r'$\Omega_R = %.5f$' % (Rabi, ),
 				   r'$E_{cav,0} = %.5f$' % (E_cav_0, ),
-				   r'$E_{vib} = %.5f$' % (E_vib),
-				   r'$n = %.4f$' % (ref_ind)))
+				   r'$E_{vib} = %.5f$' % (Ev),
+				   r'$n = %.4f$' % (n_eff)))
 
 		ax.text(0, 0.290, textstr, fontsize=10,
 				horizontalalignment='left', verticalalignment='top',
 				bbox=dict(boxstyle='square', facecolor='white'))
 	else:
-		ax.plot(angles_sim, vibration,
+		ax.plot(theta_plot, vibration,
 			linestyle='dashed',
 			color=color1,
 			label=vib_label)
