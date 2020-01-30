@@ -156,11 +156,11 @@ def get_angle_data_from_dir(directory):
 
 			# Get absorbance data if the file exists (it should always exist)
 			if abs_str in spectrum:
+				print("Found absorbance data file.")
 				abs_k, abs_I = get_data(spec_file)
 
 	absorbance_data = [abs_k, abs_I]
 	angle_data.sort()
-<<<<<<< HEAD
 	
 	return angle_data, absorbance_data
 
@@ -188,8 +188,6 @@ def get_param_from_string(string, separator):
 		elif str_loc[count] == str_loc[-1]:
 			first = str_loc[count]
 			p = string[first:]
-=======
->>>>>>> cavity_sim_validation
 
 	return angle_data, absorbance_data
 
@@ -249,10 +247,7 @@ def write_angle_spec_to_file(angle_data_list, sample_name):
 		while i < num_wavenums:
 			# Cycle through data points, first set up wavenumbers
 			row = [wavenumbers[i]]
-<<<<<<< HEAD
-=======
 
->>>>>>> cavity_sim_validation
 			for item in angle_data_list:
 				# Cycle through data point for each degree, make a row
 				row.append(item[2][i])
@@ -512,9 +507,16 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 	lower_pol = []	  				# List of Lorentzian classes for lower polariton
 	upper_pol = []	  				# List of Lorentzian classes for upper polariton
 	
-	abs_k = absor_data[0]
-	abs_I = absor_data[1]
-	abs_lor = absorbance_fitting(abs_k, abs_I, bounds)
+	if not absor_data[0] and not absor_data[1]:
+		print("No absorbance data.\n")
+		abs_amp = 0.
+		
+	else:
+		print(absor_data)
+		abs_k = absor_data[0]
+		abs_I = absor_data[1]
+		abs_lor = absorbance_fitting(abs_k, abs_I, bounds)
+		abs_amp = abs_lor.x0
 
 	for d in angle_data:
 
@@ -537,7 +539,7 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 		lower_pol.append(lor_lower.x0)
 		upper_pol.append(lor_upper.x0)
 
-	return angles, lower_pol, upper_pol, abs_lor.x0
+	return angles, lower_pol, upper_pol, abs_amp
 
 
 def splitting_least_squares(initial, angles, Elp, Eup):
