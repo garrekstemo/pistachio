@@ -427,11 +427,12 @@ def absorbance_fitting(wavenum, intensity, bounds):
 
 	return lor
 
-def polariton_fitting(wavenum, intensity, lorz1, lorz2, fit_type='single_peak'):
+def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	"""Fit the curve with data and Lorentzian class
 	   lorz1 and lorz2 basically store initial fitting guesses."""
 
-	fitting_func = lorz1.lor_func(wavenum)		
+	fitting_func = lorz1.lor_func(wavenum)
+	fit_type = args.fit_function[0]
 
 # 	amp1 = lorz1.amplitude
 # 	x01 = lorz1.x0
@@ -680,13 +681,16 @@ def plot_polariton(x_, y_, fit_func):
 	ax.plot(x_, fit_func)
 
 def main():
-
+	
 	spectral_data = args.spectral_data
 	config_params = args.config
 	fit_func = args.fit_function
 	bounds = get_bounds_from_yaml(config_params)
 	bounds.sort()
 	output_path = get_output_path_from_yaml(config_params)
+	
+	print('')
+	print('Fit function is {}.'.format(fit_func[0]))
 
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
@@ -723,7 +727,6 @@ def main():
 		print("E_vib =", E_vib)
 		print("Rabi =", Rabi)
 		print("n =", refractive_index)
-
 		
 		rad = [a * np.pi/180 for a in ang]  # convert degrees to radians
 		E_cav = cavity_mode_energy(rad, E_0, refractive_index)  # calculate cavity mode
@@ -741,7 +744,6 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
 	spectrum_help = "csv file or directory containing spectral information."
-	output_help = "Path for output data directory."
 	config_help = "Yaml file to set Lorentz fit bounds and \
 					least squares fit initial guesses for \
 					0 degree incidence cavity mode energy, \
@@ -761,7 +763,6 @@ if __name__ == '__main__':
 	
 
 	parser.add_argument('spectral_data', help=spectrum_help)
-	parser.add_argument('output', help=output_help)
 	parser.add_argument('-CF', '--config', help=config_help)
 	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
 	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
