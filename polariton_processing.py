@@ -4,10 +4,10 @@
 Polariton Data Processing
 Author: Garrek Stemo
 Date Created: November 18, 2019
-Date Updated: December 17, 2019
+Date Updated: February 10, 2020
 Description: This program takes spectral data in .csv format
-and performs curve fitting and other analysis, including graphical
-output.
+and performs curve fitting and other analysis. Graphing 
+and visualization is done via the companion program, plots.py.
 """
 
 import argparse
@@ -84,7 +84,7 @@ def wavenum_to_ev(wavenum):
 	ev = joule_to_ev(energy)
 	return ev
 
-# ========== Get and write params and data ========== #
+# ========== Get paramaters and data from user inputs and files ========== #
 
 def get_bounds_from_yaml(yaml_config):
 	"""Takes a yaml config file and gets the upper and lower bound
@@ -201,7 +201,6 @@ def get_param_from_string(string, separator):
 
 	return angle_data, absorbance_data
 
-
 def get_sample_params(directory):
 	"""Gets parameters for each angle from angle-resolved directory and file name.
 	   Returns concentration (M = mol/liter), solute name, solvent name."""
@@ -230,6 +229,9 @@ def truncate_data(xdata, ydata, bound1, bound2):
 		i+=1
 
 	return xdata[lower_pt:upper_pt], ydata[lower_pt:upper_pt]
+
+
+# ============== Write results to various files ============== #
 
 def write_angle_spec_to_file(angle_data_list, sample_name, out_path):
 	"""Takes angles list, wavenumber list, and intensity list.
@@ -479,10 +481,6 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 
 	lor_fit = lor_2peak(wavenum, *peak1_args, *peak2_args)
 
-# 	except RuntimeError:
-# 		print("Something went wrong with finding a fit (RuntimeError).")
-# 		return 1
-
 	amp1 = np.round([lorz1.amplitude, peak1_err[0]], 2)
 	center1 = np.round([lorz1.x0, peak1_err[1]], 2)
 	gamma1 = np.round([lorz1.gamma, peak1_err[2]], 2)
@@ -540,6 +538,7 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 		abs_lor = absorbance_fitting(abs_k, abs_I, bounds)
 		abs_amp = abs_lor.x0
 
+	print("Performing curve fit using: {}".format(args.fit_function[0]))
 	for d in angle_data:
 
 		angles.append(d[0])
@@ -573,14 +572,6 @@ def splitting_least_squares(initial, angles, Elp, Eup):
 	#TODO: What units do we really want here? Unitless to convert later?
 	Elp = [wavenum_to_ev(i) for i in Elp]
 	Eup = [wavenum_to_ev(i) for i in Eup]
-
-# 	vib_lb = Elp[-1]
-# 	vib_ub = Eup[0]
-# 	E0_lb = Elp[0]
-# 	E0_ub = Eup[0]
-# 	lb = [E0_lb, 0., 1.5, vib_lb]
-# 	ub = [E0_ub, 0.5, 2.0, vib_ub]
-# 	bound_vals = (lb, ub)
 
 	print("Performing default nonlinear least squares fit.")
 	optim = optimize.least_squares(error_f,
@@ -688,9 +679,6 @@ def main():
 	bounds = get_bounds_from_yaml(config_params)
 	bounds.sort()
 	output_path = get_output_path_from_yaml(config_params)
-	
-	print('')
-	print('Fit function is {}.'.format(fit_func[0]))
 
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
