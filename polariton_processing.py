@@ -202,7 +202,6 @@ def get_sample_params(directory):
 
 	if 'in' in params:
 		params.remove('in')
-
 	return sample_name, params
 
 def truncate_data(xdata, ydata, bound1, bound2):
@@ -420,7 +419,8 @@ def absorbance_fitting(wavenum, intensity, bounds):
 	return lor
 
 def polariton_fitting(wavenum, intensity, lorz1, lorz2):
-	"""Fit the curve with data and Lorentzian class"""
+	"""Fit the curve with data and Lorentzian class
+	   lorz1 and lorz2 basically store initial fitting guesses."""
 
 	fitting_func = lorz1.lor_func(wavenum)		
 
@@ -436,22 +436,36 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 # 	y02 = lorz2.y0
 	peak2_err = []
 
-	p0 = [lorz1.amplitude, lorz1.x0, lorz1.gamma, lorz1.y0,
-		  lorz2.amplitude, lorz2.x0, lorz2.gamma, lorz2.y0]
+	p01 = [lorz1.amplitude, lorz1.x0, lorz1.gamma, lorz1.y0]
+	p02	= [lorz2.amplitude, lorz2.x0, lorz2.gamma, lorz2.y0]
+	p0 = np.concatenate([p01, p02])
 
+	half = int(len(wavenum)/2)
 	lor_fit = []
-
+	
 	try:
-		popt, pcov = optimize.curve_fit(lor_2peak, wavenum, intensity, p0)
 
-		lorz1.amplitude, lorz1.x0, lorz1.gamma, lorz1.y0 = popt[0:4]
-		peak1_args = popt[0:4]
-		peak2_args = popt[4:8]
-		lorz2.amplitude, lorz2.x0, lorz2.gamma, lorz2.y0  = popt[4:8]
+		popt1, pcov1 = optimize.curve_fit(lor_1peak, wavenum[:half], intensity[:half], p01)
+		popt2, pcov2 = optimize.curve_fit(lor_1peak, wavenum[half:], intensity[half:], p02)
+
+		#This is for when peaks are very close together (weak or no coupling)
+# 		popt, pcov = optimize.curve_fit(lor_2peak, wavenum, intensity, p0)
+# 		popt1 = popt[:4]
+# 		pcov1 = pcov[:4]
+# 		popt2 = popt[4:]
+# 		pcov2 = pcov[4:]
+		# --------------------------------------------------------------------
+
+		lorz1.amplitude, lorz1.x0, lorz1.gamma, lorz1.y0 = popt1
+		peak1_args = popt1
+		lorz2.amplitude, lorz2.x0, lorz2.gamma, lorz2.y0  = popt2
+		peak2_args = popt2
+
 # 		print(np.diag(pcov))
-		err = np.sqrt(np.diag(pcov))
-		peak1_err = err[0:4]
-		peak2_err = err[4:8]
+		err1 = np.sqrt(np.diag(pcov1))
+		err2 = np.sqrt(np.diag(pcov2))
+		peak1_err = err1
+		peak2_err = err2
 
 		lor_fit = lor_2peak(wavenum, *peak1_args, *peak2_args)
 
@@ -507,12 +521,10 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 	lower_pol = []	  				# List of Lorentzian classes for lower polariton
 	upper_pol = []	  				# List of Lorentzian classes for upper polariton
 	
-	if not absor_data[0] and not absor_data[1]:
+	if not absor_data[0]:
 		print("No absorbance data.\n")
 		abs_amp = 0.
-		
 	else:
-		print(absor_data)
 		abs_k = absor_data[0]
 		abs_I = absor_data[1]
 		abs_lor = absorbance_fitting(abs_k, abs_I, bounds)
@@ -538,7 +550,7 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 		# For now, just using the x0 position of the peak
 		lower_pol.append(lor_lower.x0)
 		upper_pol.append(lor_upper.x0)
-
+		
 	return angles, lower_pol, upper_pol, abs_amp
 
 
@@ -559,6 +571,7 @@ def splitting_least_squares(initial, angles, Elp, Eup):
 # 	lb = [E0_lb, 0., 1.5, vib_lb]
 # 	ub = [E0_ub, 0.5, 2.0, vib_ub]
 # 	bound_vals = (lb, ub)
+
 	print("Performing default nonlinear least squares fit.")
 	optim = optimize.least_squares(error_f,
 								   x0=initial,
@@ -663,8 +676,6 @@ def main():
 	config_params = args.config
 	bounds = get_bounds_from_yaml(config_params)
 	bounds.sort()
-	
-
 
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
@@ -678,12 +689,13 @@ def main():
 		plot_absorbance(k, I, lor)
 
 	elif args.angleres:
+
 		print('Analyzing angle-resolved data')
 		initial_guesses, init_units = get_initial_from_yaml(config_params)
 		ang_data, abs_data = get_angle_data_from_dir(spectral_data)
 		sample, params = get_sample_params(spectral_data)
 
-# 		write_angle_spec_to_file(ang_data, sample)
+		write_angle_spec_to_file(ang_data, sample)
 		ang, Elp, Eup, E_vib = lorentzian_parsing(ang_data, abs_data, bounds)
 		#TODO: Also return the error
 		splitting_fit = splitting_least_squares(initial_guesses, ang, Elp, Eup)
