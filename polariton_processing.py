@@ -684,7 +684,7 @@ def plot_polariton(x_, y_, fit_func):
 def main():
 	args = parse_args()
 	spectral_data = args.spectral_data
-	config_params = args.config
+	config_params = args.config_file
 	fit_func = args.fit_function[0]
 	bounds = get_bounds_from_yaml(config_params)
 	bounds.sort()
@@ -701,7 +701,7 @@ def main():
 		lor = absorbance_fitting(k, I)
 		plot_absorbance(k, I, lor)
 
-	elif args.angleres:
+	elif args.angle:
 
 		print('Analyzing angle-resolved data')
 		initial_guesses, init_units = get_initial_from_yaml(config_params)
