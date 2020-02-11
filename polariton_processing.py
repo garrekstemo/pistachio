@@ -429,12 +429,11 @@ def absorbance_fitting(wavenum, intensity, bounds):
 
 	return lor
 
-def polariton_fitting(wavenum, intensity, lorz1, lorz2):
+def polariton_fitting(wavenum, intensity, fit_type, lorz1, lorz2):
 	"""Fit the curve with data and Lorentzian class
 	   lorz1 and lorz2 basically store initial fitting guesses."""
 
 	fitting_func = lorz1.lor_func(wavenum)
-	fit_type = args.fit_function[0]
 
 # 	amp1 = lorz1.amplitude
 # 	x01 = lorz1.x0
@@ -504,7 +503,7 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	return lor_fit, lorz1, lorz2
 
 
-def lorentzian_parsing(angle_data, absor_data, bounds):
+def lorentzian_parsing(angle_data, absor_data, fit_func, bounds):
 	"""Takes raw angle-resolved spectra, absorbance spectrum, list with upper, lower bound.
 	   Returns lists of angles, upper/lower polariton peak positions (cm-1),
 	   absorbance peak position. This info is used for dispersion curves later."""
@@ -538,7 +537,7 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 		abs_lor = absorbance_fitting(abs_k, abs_I, bounds)
 		abs_amp = abs_lor.x0
 
-	print("Performing curve fit using: {}".format(args.fit_function[0]))
+	print("Performing curve fit using: {}".format(fit_func))
 	for d in angle_data:
 
 		angles.append(d[0])
@@ -548,7 +547,7 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 		wavenum, intensity = truncate_data(wavenum, intensity, low_bound, up_bound)
 
 		# Fit the data to find upper and lower polaritons.
-		fit, lor_lower, lor_upper = polariton_fitting(wavenum, intensity, lorz1, lorz2)
+		fit, lor_lower, lor_upper = polariton_fitting(wavenum, intensity, fit_func, lorz1, lorz2)
 		lorz1 = lor_lower
 		lorz2 = lor_upper
 
@@ -638,6 +637,40 @@ def cavity_modes(bounds):
 
 	return angles, modes
 
+def parse_args():
+	parser = argparse.ArgumentParser()
+
+	spectrum_help = "single csv file or directory containing spectral data."
+	fit_function_help = "String that determines which fitting function to use when doing peak \
+						 fitting of polariton spectral data. \
+						 Options include 'single_peak' and 'double_peak' \
+						 for two single-peak Lorentzian fuctions and one double-peak \
+						 Lorentzian function, respectively."
+	config_help = "Yaml file. Truncates data to include only polariton peaks; \
+					sets least squares fit initial guesses for: \
+					0 degree incidence cavity mode energy, \
+					Rabi splitting value, \
+					vibrational excitation energy; sets output file path. \
+					See ReadMe for more information."
+
+	cavity_help = "csv file containing angle-tuned cavity mode data."
+	cav_cen_help = "Initial guess for x position of mode center."
+	pol_help = "Boolean. Lorentzian fit for a single spectrum file."
+	abs_help = "Boolean. Lorentzian fit for absorbance single peak data."
+	angle_help = "Boolean. Directory contains angle-tuned data."
+
+
+	parser.add_argument('spectral_data', help=spectrum_help)
+	parser.add_argument('-CF', '--config', help=config_help)
+	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
+	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
+	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
+	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
+	parser.add_argument('-T', '--angleres', action='store_true', help=angle_help)
+	parser.add_argument('fit_function', type=str, nargs='*', help=fit_function_help)
+
+	return parser.parse_args()
+
 
 # ====== Plotting (might move to separate module) ====== #
 
@@ -671,10 +704,10 @@ def plot_polariton(x_, y_, fit_func):
 	ax.plot(x_, fit_func)
 
 def main():
-	
+	args = parse_args()
 	spectral_data = args.spectral_data
 	config_params = args.config
-	fit_func = args.fit_function
+	fit_func = args.fit_function[0]
 	bounds = get_bounds_from_yaml(config_params)
 	bounds.sort()
 	output_path = get_output_path_from_yaml(config_params)
@@ -698,7 +731,7 @@ def main():
 		sample, params = get_sample_params(spectral_data)
 
 		write_angle_spec_to_file(ang_data, sample, output_path)
-		ang, Elp, Eup, E_vib = lorentzian_parsing(ang_data, abs_data, bounds)
+		ang, Elp, Eup, E_vib = lorentzian_parsing(ang_data, abs_data, fit_func, bounds)
 		#TODO: Also return the error
 		splitting_fit = splitting_least_squares(initial_guesses, ang, Elp, Eup)
 
@@ -727,37 +760,4 @@ def main():
 
 
 if __name__ == '__main__':
-
-	parser = argparse.ArgumentParser()
-
-	spectrum_help = "csv file or directory containing spectral information."
-	config_help = "Yaml file to set Lorentz fit bounds and \
-					least squares fit initial guesses for \
-					0 degree incidence cavity mode energy, \
-					Rabi splitting value, \
-					vibrational excitation energy."
-	cavity_help = "csv file containing angle-tuned cavity mode data."
-	cav_cen_help = "Initial guess for x position of mode center."
-	spec_dir_help = "Directory of angle-resolved polariton spectral data."
-	pol_help = "Boolean. Lorentzian fit for a single spectrum file."
-	abs_help = "Boolean indicating absorbance single peak data."
-	angle_help = "Boolean indicating directory contains angle-resolved data."
-	fit_function_help = "String that determines which fitting function to use when doing peak \
-						 fitting of polariton spectral data. \
-						 Options include 'single_peak' and 'double_peak' \
-						 for two single-peak Lorentzian fuctions and one double-peak \
-						 Lorentzian function, respectively."
-	
-
-	parser.add_argument('spectral_data', help=spectrum_help)
-	parser.add_argument('-CF', '--config', help=config_help)
-	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
-	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
-	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
-	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
-	parser.add_argument('-T', '--angleres', action='store_true', help=angle_help)
-	parser.add_argument('fit_function', type=str, nargs='*', help=fit_function_help)
-
-	args = parser.parse_args()
-
 	main()
