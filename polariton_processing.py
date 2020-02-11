@@ -22,6 +22,7 @@ from scipy import constants
 import matplotlib.pyplot as plt
 from ruamel_yaml import YAML
 import pdb
+import convert_unit
 
 yaml = YAML()
 
@@ -55,35 +56,6 @@ class Lorentzian:
 		lor = self.y0 + self.amplitude * self.gamma**2 / ((x - self.x0)**2 + self.gamma**2)
 		return lor
 
-
-# ========== Unit conversions ========== #
-
-def deg_to_rad(angles):
-	"""Convert degrees to radians."""
-	angles = [a * np.pi/180 for a in angles]
-	return angles
-
-def wavenum_to_wavelen(wavenum):
-	"""cm^-1 to micrometers"""
-	wavelen = (1/wavenum) * 10000
-	return wavelen
-	
-def joule_to_ev(joule):
-	ev = joule / constants.elementary_charge
-	return ev
-	
-def wavenum_to_joule(wavenum):
-	"""cm^-1 to photon energy"""
-	cm_to_m = 1/100
-	joules = constants.h * constants.c * (wavenum / cm_to_m)
-	return joules
-
-def wavenum_to_ev(wavenum):
-	"""cm^-1 to eV units"""
-	energy = wavenum_to_joule(wavenum)
-	ev = joule_to_ev(energy)
-	return ev
-
 # ========== Get paramaters and data from user inputs and files ========== #
 
 def get_bounds_from_yaml(yaml_config):
@@ -104,7 +76,6 @@ def get_output_path_from_yaml(yaml_config):
 	with open(yaml_config, 'r') as yml:
 		config = yaml.load(yml)
 	return config['data']['output']
-	
 
 def get_initial_from_yaml(yaml_config):
 	"""Takes yaml config file and gets initial guesses
@@ -119,7 +90,14 @@ def get_initial_from_yaml(yaml_config):
 	n_guess = config['least_squares_guesses']['refractive_index']
 	E_vib_guess = config['least_squares_guesses']['E_exc']
 	
-	return [E_0_guess, E_vib_guess, Rabi_guess, n_guess], initial_units
+	initial = [E_0_guess, E_vib_guess, Rabi_guess]
+
+	if initial_units.lower() == 'ev':
+		initial = convert_unit.set_units(initial, initial_units.lower(), 'wn')
+	
+	initial.append(n_guess)
+
+	return initial, initial_units
 	
 
 def get_data(spectral_data):
@@ -566,7 +544,7 @@ def splitting_least_squares(initial, angles, Elp, Eup):
 	   Takes angles (in degrees), and experimental upper and lower polariton data.
 	   Returns nonlinear least squares fit."""
 
-	angles = deg_to_rad(angles)
+	angles = convert_unit.deg_to_rad(angles)
 	#TODO: What units do we really want here? Unitless to convert later?
 	# Commented out for now so that unit conversions happen in plots.py
 # 	Elp = [wavenum_to_ev(i) for i in Elp]
