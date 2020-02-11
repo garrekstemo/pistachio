@@ -639,12 +639,12 @@ def parse_args():
 
 
 	parser.add_argument('spectral_data', help=spectrum_help)
-	parser.add_argument('-CF', '--config', help=config_help)
+	parser.add_argument('-F', '--config_file', help=config_help)
 	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
 	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
 	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
 	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
-	parser.add_argument('-T', '--angleres', action='store_true', help=angle_help)
+	parser.add_argument('-T', '--angle', action='store_true', help=angle_help)
 	parser.add_argument('fit_function', type=str, nargs='*', help=fit_function_help)
 
 	return parser.parse_args()
@@ -719,7 +719,7 @@ def main():
 		refractive_index = splitting_fit.x[3]
 		
 # 		print(splitting_fit)
-		print("Initial guesses ({}): ".format(init_units), initial_guesses)
+		print("Initial guesses (converted from {}): \n".format(init_units), initial_guesses)
 		print("Fitting results:")
 		print("E_0 =", E_0)
 		print("E_vib =", E_vib)

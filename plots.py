@@ -25,25 +25,9 @@ def get_splitting_results(splitting_file):
 	
 	return params
 
-def set_units(unit_data, set_units):
-	#TODO: Handle arbitrary units from input data.
-	# Assume input unit_data in cm^-1
-	cm_to_m = 1/100
-	energy = [wavenum_to_joules(d) for d in unit_data]
-	energy_to_ev = [joules_to_ev(en) for en in energy]
-	wavenumber_to_wavelength = [wavenum_to_wavelen(d) for d in unit_data]
-
-	if set_units == 'ev':
-		new_units = energy_to_ev
-	elif set_units == 'wn':
-		new_units = unit_data
-	elif set_units == 'wl':
-		new_units = wavenumber_to_wavelength
-	return new_units
-
 # Plotting functions
 
-def TRA_plots(inputfile, outputfile):
+def TRA_plots(inputfile, outputfile, save_dir=None):
 	wavelength = []
 	wavenumber = []
 	transmittance = []
@@ -110,7 +94,7 @@ def TRA_plots(inputfile, outputfile):
 	plt.subplots_adjust(top=0.9)
 # 	plt.tight_layout()
 
-	if args.savedir:
+	if save_dir:
 		print("Saving figure as pdf")
 		file_name = outputfile
 # 		output_file = os.path.join(args.savedir, outputfile)
@@ -146,7 +130,7 @@ def reference_data(data_file):
 
 # ====== Plot Polariton Data and Dispersion Curves ====== #
 
-def plot_spectra(file_prefix, spectra_file, excitation=None):
+def plot_spectra(file_prefix, spectra_file, excitation=None, save_dir=None):
 	"""Takes csv file with spectral data produced by
 	   write_angle_spec_to_file or write_dispersion_to_file functions in
 	   polariton_processing module"""
@@ -208,9 +192,9 @@ def plot_spectra(file_prefix, spectra_file, excitation=None):
 	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)')
 	ax.set_ylabel('Transmission %')
 
-	if args.savedir:
+	if save_dir:
 		file_name = file_prefix + '_cascade_plot.pdf'
-		output_file = os.path.join(args.savedir, file_name)
+		output_file = os.path.join(save_dir, file_name)
 		fig.savefig(output_file, bbox_inches='tight')
 		print("Saved cascade plot to {}".format(output_file))
 	else:
@@ -219,19 +203,17 @@ def plot_spectra(file_prefix, spectra_file, excitation=None):
 	return 0
 	
 
-def plot_dispersion(file_prefix, dispersion_file):
+def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, save_dir=None):
 	"""Takes dispersion curve file and plots wavenumber vs angle
 	   for UP, LP, vibration mode, cavity mode"""
 	
-	UNIT = args.units[0]
-	
-	if UNIT.lower() == 'ev':
+	if plot_units == 'ev':
 		ylabel = 'Energy (eV)'
 		unit_str = 'eV'
-	elif UNIT.lower() == 'wl':
+	elif plot_units == 'wl':
 		ylabel = r'Wavelength ($\mu$m)'
 		unit_str = 'wavelength'
-	elif UNIT.lower() == 'wn':
+	elif plot_units == 'wn':
 		ylabel = r'Wavenumber (cm$^{-1}$)'
 		unit_str = 'wavenumber'
 	
@@ -251,10 +233,10 @@ def plot_dispersion(file_prefix, dispersion_file):
 			vibration.append(float(row[3]))
 			cavity.append(float(row[4]))
 	current_units = 'wn' # wavenumber
-	up = convert_unit.set_units(up, current_units, UNIT)
-	lp = convert_unit.set_units(lp, current_units, UNIT)
-	cavity = convert_unit.set_units(cavity, current_units, UNIT)
-	vibration = convert_unit.set_units(vibration, current_units, UNIT)
+	up = convert_unit.set_units(up, current_units, plot_units)
+	lp = convert_unit.set_units(lp, current_units, plot_units)
+	cavity = convert_unit.set_units(cavity, current_units, plot_units)
+	vibration = convert_unit.set_units(vibration, current_units, plot_units)
 
 	fig, ax = plt.subplots()
 
@@ -277,15 +259,15 @@ def plot_dispersion(file_prefix, dispersion_file):
 	theta_rad = [a * np.pi/180 for a in theta_plot]
 	
 	# Nonlinear least squares results labeling
-	if args.splitting_results:
+	if splitting:
 		
 		# Get fitting params from text file and convert units
-		params = get_splitting_results(args.splitting_results)
+		params = get_splitting_results(splitting)
 		E_cav0 = params['E_cav_0']
 		n_eff = params['n']
 		Rabi = params['Rabi']
 		E_vib = params['E_vib']
-		E_cav0, E_vib, Rabi = convert_unit.set_units([E_cav0, E_vib, Rabi], current_units, UNIT)
+		E_cav0, E_vib, Rabi = convert_unit.set_units([E_cav0, E_vib, Rabi], current_units, plot_units)
 		
 		# Generate curve from fitting data
 		Ec = pp.cavity_mode_energy(theta_rad, E_cav0, n_eff)
@@ -304,7 +286,7 @@ def plot_dispersion(file_prefix, dispersion_file):
 				   r'$E_{cav,0} = %.4f$' % (E_cav0),
 				   r'$E_{vib} = %.4f$' % (E_vib),
 				   r'$n = %.3f$' % (n_eff)))
-		if not args.savedir:
+		if not save_dir:
 			ax.text(0.45, 1.0, textstr, fontsize=10,
 					horizontalalignment='left', verticalalignment='top',
 					transform=ax.transAxes,
@@ -330,14 +312,13 @@ def plot_dispersion(file_prefix, dispersion_file):
 	ax.set_ylabel(ylabel)
 
 	# Some settings for saving to PDF
-	if args.savedir:
+	if save_dir:
 		ax.text(1.01, 0.5, textstr, fontsize=10,
 				horizontalalignment='left', verticalalignment='top',
 				transform=ax.transAxes,
 				bbox=dict(boxstyle='square', facecolor='white'))
 		file_name = file_prefix + '_dispersion_curve.pdf'
-		output_file = os.path.join(args.savedir, file_name)
-		print(output_file)
+		output_file = os.path.join(save_dir, file_name)
 		fig.savefig(output_file, bbox_inches='tight')
 		print("Saved dispersion plot to {}".format(output_file))
 	else:
@@ -345,48 +326,7 @@ def plot_dispersion(file_prefix, dispersion_file):
 	
 	return 0
 
-
-def main():
-
-	if args.simulation:
-		TRA_plots(args.simulation, args.savedir)
-# 	field_profile_data = sys.argv[2]
-
-	if args.dispersion:
-		#TODO: Use parameter strings to title plots
-		dispersion_data = args.dispersion
-		sample_name, params = pp.get_sample_params(dispersion_data)
-		file_prefix = params[0] + '_' + params[1]
-		plot_dispersion(file_prefix, dispersion_data)
-
-	if args.angle:
-		angle_data = args.angle
-		sample_name, params = pp.get_sample_params(angle_data)
-		
-		file_prefix = params[0] + '_' + params[1]
-		
-# 		plot_spectra(file_prefix, angle_data, excitation=2171)
-		plot_spectra(file_prefix, angle_data)
-	
-	
-	# ===== Plotting FTIR data ===== #
-# 	x_file = "/Users/garrek/Desktop/fpi0xwave.txt"
-# 	y_file = "/Users/garrek/Desktop/trans0.txt"
-# 	x_data = []
-# 	y_data = []
-# 	
-# 	with open(x_file, 'r') as xf:
-# 		lines = xf.readlines()
-# 		for line in lines:
-# 			x_data.append(float(line))
-# 	with open(y_file, 'r') as yf:
-# 		lines = yf.readlines()
-# 		for line in lines:
-# 			y_data.append(float(line))
-# ============================== #
-
-
-if __name__ == "__main__":
+def parse_args():
 	
 	#TODO: Make flag to toggle powerpoint and paper font settings
 	parser = argparse.ArgumentParser()
@@ -411,17 +351,22 @@ if __name__ == "__main__":
 
 
 	parser.add_argument('-SIM', '--simulation', help=simulation_help)
-	parser.add_argument('-T', '--transmission',help=transmittance_help)
-	parser.add_argument('-R', '--reflection',help=reflectance_help)
-	parser.add_argument('-A', '--absorbance', help=absorptance_help)
+	parser.add_argument('-TRN', '--transmission',help=transmittance_help)
+	parser.add_argument('-RFL', '--reflection',help=reflectance_help)
+	parser.add_argument('-ABS', '--absorbance', help=absorptance_help)
 	parser.add_argument('-D', '--dispersion', help=dispersion_help)
-	parser.add_argument('-ANG', '--angle', help=angle_help)
+	parser.add_argument('-T', '--angle', help=angle_help)
 	parser.add_argument('-S', '--savedir', help=save_help)
 	parser.add_argument('-SP', '--splitting_results', help=splitting_help)
 	parser.add_argument('units', type=str, nargs='*', help=units_help)
 	
-	args = parser.parse_args()
+	return parser.parse_args()
 
+def main():
+	args = parse_args()
+	
+	display_units = args.units[0].lower()
+	
 	if args.transmission:
 		print("Using transmission reference data.")
 		wl_T_data, T_data = reference_data(args.transmission)
@@ -432,5 +377,49 @@ if __name__ == "__main__":
 		print("Using absorbance reference data.")
 		wl_A_data, A_data = reference_data(args.absorbance)
 
+
+	if args.simulation:
+		TRA_plots(args.simulation, args.savedir)
+# 	field_profile_data = sys.argv[2]
+
+	if args.dispersion:
+		#TODO: Use parameter strings to title plots
+		dispersion_data = args.dispersion
+		sample_name, params = pp.get_sample_params(dispersion_data)
+		file_prefix = params[0] + '_' + params[1]
+		if args.splitting_results:
+			plot_dispersion(file_prefix, dispersion_data, display_units, args.splitting_results, args.savedir)
+		else:
+			plot_dispersion(file_prefix, dispersion_data, display_units, args.savedir)
+
+	if args.angle:
+		angle_data = args.angle
+		print(args.savedir)
+		sample_name, params = pp.get_sample_params(angle_data)
+		
+		file_prefix = params[0] + '_' + params[1]
+		
+# 		plot_spectra(file_prefix, angle_data, excitation=2171)
+		plot_spectra(file_prefix, angle_data, save_dir=args.savedir)
+	
+	
+	# ===== Plotting FTIR data ===== #
+# 	x_file = "/Users/garrek/Desktop/fpi0xwave.txt"
+# 	y_file = "/Users/garrek/Desktop/trans0.txt"
+# 	x_data = []
+# 	y_data = []
+# 	
+# 	with open(x_file, 'r') as xf:
+# 		lines = xf.readlines()
+# 		for line in lines:
+# 			x_data.append(float(line))
+# 	with open(y_file, 'r') as yf:
+# 		lines = yf.readlines()
+# 		for line in lines:
+# 			y_data.append(float(line))
+# ============================== #
+
+
+if __name__ == "__main__":
 	main()
 
