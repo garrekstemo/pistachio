@@ -3,11 +3,11 @@
 Author: Garrek Stemo\
 Affiliation: Nara Institute of Science and Technology\
 Date Created: July 5, 2019\
-Updated: January 24, 2019
+Updated: February 11, 2020
 
-Pistachio is a suite of software for analysis of strongly coupled light-matter phenomenon.
+Pistachio is a suite of software for analysis of coupled light-matter phenomenon.
 It includes a transfer matrix program based on Optical Waves in Layered Media by Pochi Yeh[^1] 
-and Lorentzian fitting algorithms for generating dispersion curves, both from experimental data and simulated.
+and fitting algorithms for generating dispersion curves, both from experimental data and simulated.
 
 
 ## Table of Contents
@@ -96,9 +96,9 @@ There are a few different flags that can be used to specify the type of analysis
 
 Command line arguments include, yaml config file, input file or directory, and output directory, with the appropriate flags. An example input might look like the following:
 
-`python polariton_processing.py -CF /yaml_config.yaml -T /Users/../data/out/1.0M_WCO6_in_Hexane /Users/../data/out/` 
+`python polariton_processing.py -F /yaml_config.yaml -T /Users/../data/out/1.0M_WCO6_in_Hexane /Users/../data/out/` 
 
-Here we have used the `-CF` flag to denote a yaml config file containing the wavenumber bounds (for truncating data before doing a Lorentzian fit) and initial guesses for performing nonlinear least squares fitting on the dispersion data.
+Here we have used the `-F` flag to denote a yaml config file containing the wavenumber bounds (for truncating data before doing a Lorentzian fit) and initial guesses for performing nonlinear least squares fitting on the dispersion data.
 
 
 ### How to name files and folders for experiments
@@ -121,7 +121,9 @@ The program currently does not handle vacant cavity data, but this might be adde
 
 ### Config file format
 
-There is also a yaml config file for analyzing polariton data. FTIR analysis is performed over a wide range of wavelengths, making any curve fitting impossible without truncating the raw data first. The user is spared from doing this themselves by simply including upper and lower bounds in the config file. The next item in the config file are initial guesses for the least squares fitting algorithm, which includes the 0-degree incident cavity mode energy, Rabi splitting parameter, refractive index, and vibrational mode energy. For now, the energies are implemented in eV units. A `units` parameter is also part of this section for future unit conversion, but it does not really do much right now. Yes, it's a little confusing that bounds are in inverse centimeters and the least squares guesses are in eV, but this is a work in progress.
+There is also a yaml config file for analyzing polariton data. FTIR analysis is performed over a wide range of wavelengths, making any curve fitting impossible without truncating the raw data first. The user is spared from doing this themselves by simply including upper and lower bounds in the config file. The next item in the config file are initial guesses for the least squares fitting algorithm, which includes the 0-degree incident cavity mode energy, Rabi splitting parameter, refractive index, and vibrational mode energy. These energies can be put in units of eV or cm<sup>-1</sup> and are automatically converted for the fitting algorithm. The `units` parameter tells the program which units the initial guesses are in. These are then converted to cm<sup>-1</sup> because these are the standard units reported in FTIR machines, where these kinds of experiments are often performed. Yes, it's a little confusing that bounds are in inverse centimeters and the least squares guesses can be whatever you want, but this is a work in progress.
+
+To simplify command-line arguments, the user can also specify an output directory here.
 
 #### Example polariton config file
 
@@ -134,8 +136,11 @@ least_squares_guesses:
 	units: 'eV'
 	E_cav_0: 0.275
 	Rabi_splitting: 0.006
-	refractive_index: 1.53
+	refractive_index: 1.4
 	E_exc: 0.275
+	
+data:
+	output: '/Users/.../output_dir/'
 ```
 
 
@@ -169,11 +174,11 @@ Once fitting is complete, the polariton, cavity mode, and vibrational mode dispe
 
 ## Plotting
 
-Plotting processed experimental data is relatively robust. Processed data from `polariton_processing.py` will have file names that can be read by `plots.py`, which can generate some plots automatically. The user will need to manually adjust xlim and slim, as well as labels. This is a pain, but shouldn't be too hard to do.
+Plotting processed experimental data is relatively robust. Processed data from `polariton_processing.py` will have file names that can be read by `plots.py`, which can generate some plots automatically. The user will need to manually adjust a few labels, positioning, and titles. This is a pain, but shouldn't be too hard to do. The process is slowly being automated to make pretty plots.
 
 ## How to install Pistachio
 
-Make sure you have python 3, numpy, scipy, and other dependencies installed.
+Make sure you have Python 3, numpy, scipy, and other dependencies in the headers installed.
 The easiest way to do this is to install a package manager, like Anaconda.
 
 Then go to the command line. Navigate to the directory where you want to put Pistachio, like `~/projects/`, using the `cd` command. Then enter
@@ -181,7 +186,7 @@ Then go to the command line. Navigate to the directory where you want to put Pis
 `git clone https://github.com/garrekds/pistachio .` 
 
 
-# References
+## References
 
 [^1]: Yeh, P. Optical Waves in Layered Media. (Wiley, 2005).
 

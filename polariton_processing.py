@@ -22,6 +22,7 @@ from scipy import constants
 import matplotlib.pyplot as plt
 from ruamel_yaml import YAML
 import pdb
+import convert_unit
 
 yaml = YAML()
 
@@ -55,35 +56,6 @@ class Lorentzian:
 		lor = self.y0 + self.amplitude * self.gamma**2 / ((x - self.x0)**2 + self.gamma**2)
 		return lor
 
-
-# ========== Unit conversions ========== #
-
-def deg_to_rad(angles):
-	"""Convert degrees to radians."""
-	angles = [a * np.pi/180 for a in angles]
-	return angles
-
-def wavenum_to_wavelen(wavenum):
-	"""cm^-1 to micrometers"""
-	wavelen = (1/wavenum) * 10000
-	return wavelen
-	
-def joule_to_ev(joule):
-	ev = joule / constants.elementary_charge
-	return ev
-	
-def wavenum_to_joule(wavenum):
-	"""cm^-1 to photon energy"""
-	cm_to_m = 1/100
-	joules = constants.h * constants.c * (wavenum / cm_to_m)
-	return joules
-
-def wavenum_to_ev(wavenum):
-	"""cm^-1 to eV units"""
-	energy = wavenum_to_joule(wavenum)
-	ev = joule_to_ev(energy)
-	return ev
-
 # ========== Get paramaters and data from user inputs and files ========== #
 
 def get_bounds_from_yaml(yaml_config):
@@ -104,7 +76,6 @@ def get_output_path_from_yaml(yaml_config):
 	with open(yaml_config, 'r') as yml:
 		config = yaml.load(yml)
 	return config['data']['output']
-	
 
 def get_initial_from_yaml(yaml_config):
 	"""Takes yaml config file and gets initial guesses
@@ -119,7 +90,14 @@ def get_initial_from_yaml(yaml_config):
 	n_guess = config['least_squares_guesses']['refractive_index']
 	E_vib_guess = config['least_squares_guesses']['E_exc']
 	
-	return [E_0_guess, E_vib_guess, Rabi_guess, n_guess], initial_units
+	initial = [E_0_guess, E_vib_guess, Rabi_guess]
+
+	if initial_units.lower() == 'ev':
+		initial = convert_unit.set_units(initial, initial_units.lower(), 'wn')
+	
+	initial.append(n_guess)
+
+	return initial, initial_units
 	
 
 def get_data(spectral_data):
@@ -429,12 +407,11 @@ def absorbance_fitting(wavenum, intensity, bounds):
 
 	return lor
 
-def polariton_fitting(wavenum, intensity, lorz1, lorz2):
+def polariton_fitting(wavenum, intensity, fit_type, lorz1, lorz2):
 	"""Fit the curve with data and Lorentzian class
 	   lorz1 and lorz2 basically store initial fitting guesses."""
 
 	fitting_func = lorz1.lor_func(wavenum)
-	fit_type = args.fit_function[0]
 
 # 	amp1 = lorz1.amplitude
 # 	x01 = lorz1.x0
@@ -504,7 +481,7 @@ def polariton_fitting(wavenum, intensity, lorz1, lorz2):
 	return lor_fit, lorz1, lorz2
 
 
-def lorentzian_parsing(angle_data, absor_data, bounds):
+def lorentzian_parsing(angle_data, absor_data, fit_func, bounds):
 	"""Takes raw angle-resolved spectra, absorbance spectrum, list with upper, lower bound.
 	   Returns lists of angles, upper/lower polariton peak positions (cm-1),
 	   absorbance peak position. This info is used for dispersion curves later."""
@@ -538,7 +515,7 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 		abs_lor = absorbance_fitting(abs_k, abs_I, bounds)
 		abs_amp = abs_lor.x0
 
-	print("Performing curve fit using: {}".format(args.fit_function[0]))
+	print("Performing curve fit using: {}".format(fit_func))
 	for d in angle_data:
 
 		angles.append(d[0])
@@ -548,7 +525,7 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 		wavenum, intensity = truncate_data(wavenum, intensity, low_bound, up_bound)
 
 		# Fit the data to find upper and lower polaritons.
-		fit, lor_lower, lor_upper = polariton_fitting(wavenum, intensity, lorz1, lorz2)
+		fit, lor_lower, lor_upper = polariton_fitting(wavenum, intensity, fit_func, lorz1, lorz2)
 		lorz1 = lor_lower
 		lorz2 = lor_upper
 
@@ -567,7 +544,7 @@ def splitting_least_squares(initial, angles, Elp, Eup):
 	   Takes angles (in degrees), and experimental upper and lower polariton data.
 	   Returns nonlinear least squares fit."""
 
-	angles = deg_to_rad(angles)
+	angles = convert_unit.deg_to_rad(angles)
 	#TODO: What units do we really want here? Unitless to convert later?
 	# Commented out for now so that unit conversions happen in plots.py
 # 	Elp = [wavenum_to_ev(i) for i in Elp]
@@ -638,6 +615,40 @@ def cavity_modes(bounds):
 
 	return angles, modes
 
+def parse_args():
+	parser = argparse.ArgumentParser()
+
+	spectrum_help = "single csv file or directory containing spectral data."
+	fit_function_help = "String that determines which fitting function to use when doing peak \
+						 fitting of polariton spectral data. \
+						 Options include 'single_peak' and 'double_peak' \
+						 for two single-peak Lorentzian fuctions and one double-peak \
+						 Lorentzian function, respectively."
+	config_help = "Yaml file. Truncates data to include only polariton peaks; \
+					sets least squares fit initial guesses for: \
+					0 degree incidence cavity mode energy, \
+					Rabi splitting value, \
+					vibrational excitation energy; sets output file path. \
+					See ReadMe for more information."
+
+	cavity_help = "csv file containing angle-tuned cavity mode data."
+	cav_cen_help = "Initial guess for x position of mode center."
+	pol_help = "Boolean. Lorentzian fit for a single spectrum file."
+	abs_help = "Boolean. Lorentzian fit for absorbance single peak data."
+	angle_help = "Boolean. Directory contains angle-tuned data."
+
+
+	parser.add_argument('spectral_data', help=spectrum_help)
+	parser.add_argument('-F', '--config_file', help=config_help)
+	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
+	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
+	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
+	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
+	parser.add_argument('-T', '--angle', action='store_true', help=angle_help)
+	parser.add_argument('fit_function', type=str, nargs='*', help=fit_function_help)
+
+	return parser.parse_args()
+
 
 # ====== Plotting (might move to separate module) ====== #
 
@@ -671,10 +682,10 @@ def plot_polariton(x_, y_, fit_func):
 	ax.plot(x_, fit_func)
 
 def main():
-	
+	args = parse_args()
 	spectral_data = args.spectral_data
 	config_params = args.config
-	fit_func = args.fit_function
+	fit_func = args.fit_function[0]
 	bounds = get_bounds_from_yaml(config_params)
 	bounds.sort()
 	output_path = get_output_path_from_yaml(config_params)
@@ -698,7 +709,7 @@ def main():
 		sample, params = get_sample_params(spectral_data)
 
 		write_angle_spec_to_file(ang_data, sample, output_path)
-		ang, Elp, Eup, E_vib = lorentzian_parsing(ang_data, abs_data, bounds)
+		ang, Elp, Eup, E_vib = lorentzian_parsing(ang_data, abs_data, fit_func, bounds)
 		#TODO: Also return the error
 		splitting_fit = splitting_least_squares(initial_guesses, ang, Elp, Eup)
 
@@ -708,7 +719,7 @@ def main():
 		refractive_index = splitting_fit.x[3]
 		
 # 		print(splitting_fit)
-		print("Initial guesses ({}): ".format(init_units), initial_guesses)
+		print("Initial guesses (converted from {}): \n".format(init_units), initial_guesses)
 		print("Fitting results:")
 		print("E_0 =", E_0)
 		print("E_vib =", E_vib)
@@ -727,37 +738,4 @@ def main():
 
 
 if __name__ == '__main__':
-
-	parser = argparse.ArgumentParser()
-
-	spectrum_help = "csv file or directory containing spectral information."
-	config_help = "Yaml file to set Lorentz fit bounds and \
-					least squares fit initial guesses for \
-					0 degree incidence cavity mode energy, \
-					Rabi splitting value, \
-					vibrational excitation energy."
-	cavity_help = "csv file containing angle-tuned cavity mode data."
-	cav_cen_help = "Initial guess for x position of mode center."
-	spec_dir_help = "Directory of angle-resolved polariton spectral data."
-	pol_help = "Boolean. Lorentzian fit for a single spectrum file."
-	abs_help = "Boolean indicating absorbance single peak data."
-	angle_help = "Boolean indicating directory contains angle-resolved data."
-	fit_function_help = "String that determines which fitting function to use when doing peak \
-						 fitting of polariton spectral data. \
-						 Options include 'single_peak' and 'double_peak' \
-						 for two single-peak Lorentzian fuctions and one double-peak \
-						 Lorentzian function, respectively."
-	
-
-	parser.add_argument('spectral_data', help=spectrum_help)
-	parser.add_argument('-CF', '--config', help=config_help)
-	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
-	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
-	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
-	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
-	parser.add_argument('-T', '--angleres', action='store_true', help=angle_help)
-	parser.add_argument('fit_function', type=str, nargs='*', help=fit_function_help)
-
-	args = parser.parse_args()
-
 	main()
