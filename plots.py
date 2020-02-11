@@ -284,7 +284,13 @@ def plot_dispersion(file_prefix, dispersion_file):
 		
 	cav_label = 'cavity dispersion'
 	cav_xy = (0.89, cavity[-1])
-	
+
+	# Generate theoretical data
+	n_points = 100
+	t_min = -35
+	t_max = 35
+	theta_plot = np.linspace(t_min, t_max, n_points)
+	theta_rad = [a * np.pi/180 for a in theta_plot]
 	
 	# Nonlinear least squares results labeling
 	if args.splitting_results:
@@ -296,13 +302,6 @@ def plot_dispersion(file_prefix, dispersion_file):
 		Rabi = params['Rabi']
 		E_vib = params['E_vib']
 		E_cav0, E_vib, Rabi = set_units([E_cav0, E_vib, Rabi], UNIT)
-	
-		
-		n_points = 100
-		t_min = -35
-		t_max = 35
-		theta_plot = np.linspace(t_min, t_max, n_points)
-		theta_rad = [a * np.pi/180 for a in theta_plot]
 		
 		# Generate curve from fitting data
 		Ec = pp.cavity_mode_energy(theta_rad, E_cav0, n_eff)
@@ -327,6 +326,7 @@ def plot_dispersion(file_prefix, dispersion_file):
 					transform=ax.transAxes,
 					bbox=dict(boxstyle='square', facecolor='white'))
 	else:
+		vibration = np.full((n_points, ), vibration[0])
 		ax.plot(theta_plot, vibration,
 			linestyle='dashed',
 			color=color1,
@@ -375,8 +375,8 @@ def main():
 		file_prefix = params[0] + '_' + params[1]
 		plot_dispersion(file_prefix, dispersion_data)
 
-	if args.angles:
-		angle_data = args.angles
+	if args.angle:
+		angle_data = args.angle
 		sample_name, params = pp.get_sample_params(angle_data)
 		
 		file_prefix = params[0] + '_' + params[1]
@@ -439,13 +439,14 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	if args.transmission:
+		print("Using transmission reference data.")
 		wl_T_data, T_data = reference_data(args.transmission)
 	if args.reflection:
+		print("Using reflection reference data.")
 		wl_R_data, R_data = reference_data(args.reflection)
 	if args.absorbance:
+		print("Using absorbance reference data.")
 		wl_A_data, A_data = reference_data(args.absorbance)
-	else:
-		print("Using no reference data.\n")
 
 	main()
 
