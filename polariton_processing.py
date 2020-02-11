@@ -562,7 +562,6 @@ def lorentzian_parsing(angle_data, absor_data, bounds):
 		
 	return angles, lower_pol, upper_pol, abs_amp
 
-
 def splitting_least_squares(initial, angles, Elp, Eup):
 	"""Takes initial guesses:[E_cav_0, E_vib, Rabi, n].
 	   Takes angles (in degrees), and experimental upper and lower polariton data.
@@ -570,15 +569,15 @@ def splitting_least_squares(initial, angles, Elp, Eup):
 
 	angles = deg_to_rad(angles)
 	#TODO: What units do we really want here? Unitless to convert later?
-	Elp = [wavenum_to_ev(i) for i in Elp]
-	Eup = [wavenum_to_ev(i) for i in Eup]
+	# Commented out for now so that unit conversions happen in plots.py
+# 	Elp = [wavenum_to_ev(i) for i in Elp]
+# 	Eup = [wavenum_to_ev(i) for i in Eup]
 
 	print("Performing default nonlinear least squares fit.")
 	optim = optimize.least_squares(error_f,
 								   x0=initial,
 								   args=(angles, Elp, Eup))
 	return optim
-
 
 def cavity_modes(bounds):
 	"""Use at your own peril."""
