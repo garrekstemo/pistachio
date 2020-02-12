@@ -56,6 +56,7 @@ class Lorentzian:
 		lor = self.y0 + self.amplitude * self.gamma**2 / ((x - self.x0)**2 + self.gamma**2)
 		return lor
 
+
 # ========== Get paramaters and data from user inputs and files ========== #
 
 def get_bounds_from_yaml(yaml_config):
@@ -640,11 +641,12 @@ def parse_args():
 
 	parser.add_argument('spectral_data', help=spectrum_help)
 	parser.add_argument('-F', '--config_file', help=config_help)
-	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
+	parser.add_argument('-M', '--cavity_mode', help=cavity_help)
 	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
 	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
 	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
 	parser.add_argument('-T', '--angle', action='store_true', help=angle_help)
+	parser.add_argument('-C', '--concentration', action='store_true')
 	parser.add_argument('fit_function', type=str, nargs='*', help=fit_function_help)
 
 	return parser.parse_args()
@@ -684,11 +686,15 @@ def plot_polariton(x_, y_, fit_func):
 def main():
 	args = parse_args()
 	spectral_data = args.spectral_data
-	config_params = args.config_file
-	fit_func = args.fit_function[0]
-	bounds = get_bounds_from_yaml(config_params)
-	bounds.sort()
-	output_path = get_output_path_from_yaml(config_params)
+	if args.config_file:
+	
+		config_params = args.config_file
+
+		bounds = get_bounds_from_yaml(config_params)
+		bounds.sort()
+		output_path = get_output_path_from_yaml(config_params)
+	if args.fit_function:
+		fit_func = args.fit_function[0]
 
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
@@ -731,7 +737,8 @@ def main():
 		
 		write_dispersion_to_file(ang, Eup, Elp, E_vib, E_cav, sample, output_path)
 		write_splitting_fit_to_file(splitting_fit.x, sample, init_units, output_path)
-		
+
+	
 	else:
 		print('No input data found')
 		sys.exit()
