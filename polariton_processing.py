@@ -722,7 +722,7 @@ def main():
 		Rabi = splitting_fit.x[2]
 		refractive_index = splitting_fit.x[3]
 		
-# 		print(splitting_fit)
+		print(splitting_fit)
 		print("Initial guesses (converted from {}): \n".format(init_units), initial_guesses)
 		print("Fitting results:")
 		print("E_0 =", E_0)
@@ -736,7 +736,6 @@ def main():
 		write_dispersion_to_file(ang, Eup, Elp, E_vib, E_cav, sample, output_path)
 		write_splitting_fit_to_file(splitting_fit.x, sample, init_units, output_path)
 
-	
 	else:
 		print('No input data found')
 		sys.exit()
