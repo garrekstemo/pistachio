@@ -56,6 +56,7 @@ class Lorentzian:
 		lor = self.y0 + self.amplitude * self.gamma**2 / ((x - self.x0)**2 + self.gamma**2)
 		return lor
 
+
 # ========== Get paramaters and data from user inputs and files ========== #
 
 def get_bounds_from_yaml(yaml_config):
@@ -103,8 +104,8 @@ def get_initial_from_yaml(yaml_config):
 def get_data(spectral_data):
 	"""Retrieve csv spectral data and store in array."""
 
-	k = []
-	I = []
+	wavenumber_list = np.array([])
+	intensity_list = np.array([])
 	with open(spectral_data, 'r', errors='ignore') as spectrum:
 		csvreader = csv.reader(spectrum)
 		num_header_rows = 19   # Yeah this is hard coded. Not so great.
@@ -113,21 +114,21 @@ def get_data(spectral_data):
 		for row in csvreader:
 			if row:
 				wavenum = float(row[0])
-				Inten = float(row[1])
-				k.append(wavenum)
-				I.append(Inten)
+				inten = float(row[1])
+				wavenumber_list = np.append(wavenumber_list, wavenum)
+				intensity_list = np.append(intensity_list, inten)
 			else:
 				break
-
-	return np.array(k), np.array(I)
+	return wavenumber_list, intensity_list
 
 def get_angle_data_from_dir(directory):
 	"""Extracts angle-resolved and absorbance data from each file in the supplied directory"""
 
-	abs_k = [] 			 # absorbance wavenumbers
-	abs_I = []  		 # absorbance intensities
+	abs_wavenum = np.array([]) 			 # absorbance wavenumbers
+	abs_intensity = np.array([])			 # absorbance intensities
 	angle_data = []  # List with structure [[angle, [wavenumbers, intensities]], [...], ...]
 
+	#TODO: spectrum = spectrum.lower()
 	deg_str = 'deg'
 	abs_str = 'Abs'
 
@@ -144,10 +145,9 @@ def get_angle_data_from_dir(directory):
 
 			# Get absorbance data if the file exists (it should always exist)
 			if abs_str in spectrum:
-				print("Found absorbance data file.")
-				abs_k, abs_I = get_data(spec_file)
+				abs_wavenum, abs_intensity = get_data(spec_file)
 
-	absorbance_data = [abs_k, abs_I]
+	absorbance_data = np.stack((abs_wavenum, abs_intensity))
 	angle_data.sort()
 	
 	return angle_data, absorbance_data
@@ -505,8 +505,8 @@ def lorentzian_parsing(angle_data, absor_data, fit_func, bounds):
 	lor_fits = []  	  				# List of Lorentzian fits for each data set
 	lower_pol = []	  				# List of Lorentzian classes for lower polariton
 	upper_pol = []	  				# List of Lorentzian classes for upper polariton
-	
-	if not absor_data[0]:
+
+	if absor_data.size == 0:  # check if numpy array is empty
 		print("No absorbance data.\n")
 		abs_amp = 0.
 	else:
@@ -640,11 +640,12 @@ def parse_args():
 
 	parser.add_argument('spectral_data', help=spectrum_help)
 	parser.add_argument('-F', '--config_file', help=config_help)
-	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
+	parser.add_argument('-M', '--cavity_mode', help=cavity_help)
 	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
 	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
 	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
 	parser.add_argument('-T', '--angle', action='store_true', help=angle_help)
+	parser.add_argument('-C', '--concentration', action='store_true')
 	parser.add_argument('fit_function', type=str, nargs='*', help=fit_function_help)
 
 	return parser.parse_args()
@@ -684,11 +685,15 @@ def plot_polariton(x_, y_, fit_func):
 def main():
 	args = parse_args()
 	spectral_data = args.spectral_data
-	config_params = args.config_file
-	fit_func = args.fit_function[0]
-	bounds = get_bounds_from_yaml(config_params)
-	bounds.sort()
-	output_path = get_output_path_from_yaml(config_params)
+	if args.config_file:
+	
+		config_params = args.config_file
+
+		bounds = get_bounds_from_yaml(config_params)
+		bounds.sort()
+		output_path = get_output_path_from_yaml(config_params)
+	if args.fit_function:
+		fit_func = args.fit_function[0]
 
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
@@ -705,11 +710,10 @@ def main():
 
 		print('Analyzing angle-resolved data')
 		initial_guesses, init_units = get_initial_from_yaml(config_params)
-		ang_data, abs_data = get_angle_data_from_dir(spectral_data)
+		ang_data, absorbance_data = get_angle_data_from_dir(spectral_data)
 		sample, params = get_sample_params(spectral_data)
-
 		write_angle_spec_to_file(ang_data, sample, output_path)
-		ang, Elp, Eup, E_vib = lorentzian_parsing(ang_data, abs_data, fit_func, bounds)
+		ang, Elp, Eup, E_vib = lorentzian_parsing(ang_data, absorbance_data, fit_func, bounds)
 		#TODO: Also return the error
 		splitting_fit = splitting_least_squares(initial_guesses, ang, Elp, Eup)
 
@@ -718,7 +722,7 @@ def main():
 		Rabi = splitting_fit.x[2]
 		refractive_index = splitting_fit.x[3]
 		
-# 		print(splitting_fit)
+		print(splitting_fit)
 		print("Initial guesses (converted from {}): \n".format(init_units), initial_guesses)
 		print("Fitting results:")
 		print("E_0 =", E_0)
@@ -731,7 +735,7 @@ def main():
 		
 		write_dispersion_to_file(ang, Eup, Elp, E_vib, E_cav, sample, output_path)
 		write_splitting_fit_to_file(splitting_fit.x, sample, init_units, output_path)
-		
+
 	else:
 		print('No input data found')
 		sys.exit()
