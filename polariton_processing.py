@@ -477,6 +477,7 @@ def polariton_fitting(wavenum, intensity, fit_type, lorz1, lorz2):
 	peak1_err = err1
 	peak2_err = err2
 
+	# Calculate residuals for curve fit validation
 	lor_fit = lor_2peak(wavenum, *peak1_args, *peak2_args)
 	residuals1 = intensity[:half] - lor_1peak(wavenum[:half], *peak1_args)
 	residuals2 = intensity[half:] - lor_1peak(wavenum[half:], *peak2_args)
@@ -522,10 +523,8 @@ def splitting_least_squares(initial, angles, Elp, Eup):
 	return optim
 
 def find_polariton_peaks(wavenum, intensity):
-	"""Finds peak positions for upper and lower polariton."""
-	
+	"""Not Implemented."""
 	peaks, prop = signal.find_peaks(intensity, threshold=(2,2))
-	
 	return peaks
 	
 
@@ -722,13 +721,14 @@ def plot_polariton(x_, y_, fit_func):
 def main():
 	args = parse_args()
 	spectral_data = args.spectral_data
+
 	if args.config_file:
 	
 		config_params = args.config_file
-
 		bounds = get_bounds_from_yaml(config_params)
 		bounds.sort()
 		output_path = get_output_path_from_yaml(config_params)
+
 	if args.fit_function:
 		fit_func = args.fit_function[0]
 
