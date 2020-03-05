@@ -33,13 +33,13 @@ class Lorentzian:
 	def __init__(self, amplitude=None, x0=None, y0=None, gamma=None):
 		"""These parameters function as initial guesses for the fit function."""
 		if amplitude == None:
-			self.amplitude = 0.5
+			self.amplitude = 1.
 		if x0 == None:
-			self.x0 = 1000.
+			self.x0 = 2000.
 		if y0 == None:
-			self.y0 = 0.
+			self.y0 = 0.5
 		if gamma == None:
-			self.gamma = 30.
+			self.gamma = 100.
 
 	def set_amplitude(self, new_amp):
 		self.amplitude = new_amp
@@ -326,9 +326,9 @@ def lor_1peak(x, A, x0, gamma, y0):
 	return lor
 
 def lor_2peak(x, A1, x0_1, gamma1, y0_1, A2, x0_2, gamma2, y0_2):
-	"""Lorentzian fitting function for two peaks"""
+	"""Lorentzian fitting function for two peaks. Note that y0_2 offset is not used."""
 	lor2 = y0_1 + A1 * gamma1**2 / ((x - x0_1)**2 + gamma1**2) \
-		   + y0_2 + A2 * gamma2**2 / ((x - x0_2)**2 + gamma2**2)
+			+ A2 * gamma2**2 / ((x - x0_2)**2 + gamma2**2)
 	return lor2
 
 def coupled_energies(theta, E0, Ee, Rabi, n_eff, branch=0):
@@ -452,6 +452,9 @@ def polariton_fitting(wavenum, intensity, fit_type, lorz1, lorz2):
 
 	half = int(len(wavenum)/2)
 	lor_fit = []
+	
+	popt1 = None
+	popt2 = None
 	
 	if fit_type == 'single_peak':
 

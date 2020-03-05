@@ -179,12 +179,11 @@ def plot_spectra(file_prefix, spectra_file, excitation=None, save_dir=None):
 	fig, ax = plt.subplots()
 	
 	y_offset = 0.
-	i = int(len(angles)) - 12
-	MAX = i
-	theta1 = str(angles[i])
+	i = 0
+	MAX = len(angles) - 1
+	theta1 = str(angles[0])
 	theta2 = str(angles[MAX])
-	while i >= 12:
-# 	while i <= MAX:
+	while i < len(angles):
 
 		y_vals = intensities[i][1]
 		y_vals = [y+y_offset for y in y_vals]
@@ -196,18 +195,18 @@ def plot_spectra(file_prefix, spectra_file, excitation=None, save_dir=None):
 				linestyle='dashed',
 				label=deg_label)
 		y_offset += 0.
-		i-=1
-# 		i+=1
+# 		i-=1
+		i+=1
 		
 	if excitation:
 		ax.axvline(x=excitation)
-	theta2 = str(angles[i])
+
 	# Figure formatting
 	ax.tick_params(axis='both', which='both', direction='in', right=True, top=True)
 	ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 	ax.yaxis.set_minor_locator(ticker. AutoMinorLocator(5))
-	ax.set_xlim([2270, 2200])
-	ax.set_ylim([1.6, 2])
+	ax.set_xlim([3000, 1400])
+	ax.set_ylim([0, 2])
 
 	# Annotate	
 	#TODO: Don't hard code these labels or xlim, ylim.

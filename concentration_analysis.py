@@ -11,8 +11,9 @@ def get_concentration_data(dir_str):
 	   file name for each file, opens the file, grabs the Rabi splitting value.
 	   Concentrations and Rabi splitting values are then put into an array and returned."""
 
-	concentrations = []
-	rabi_splittings = []
+	# Initialized with zero since zero concentration yields no Rabi splitting
+	concentrations = [0]
+	rabi_splittings = [0]
 	solute = ''
 	solvent = ''
 
@@ -84,9 +85,12 @@ def scale_splitting(splitting_list):
 	
 	
 def parse_args():
+
+	conc_dir_help = "Directory containing splitting fit results for each concentration."
+	out_dir_help = "Output directory for splitting versus concentration data."
 	parser = argparse.ArgumentParser()
-	parser.add_argument('conc_dir')
-	parser.add_argument('out_file')
+	parser.add_argument('conc_dir', help=conc_dir_help)
+	parser.add_argument('out_dir', help=out_dir_help)
 	return parser.parse_args()
 
 
@@ -96,7 +100,7 @@ def main():
 	solute, solvent, conc, splitting = get_concentration_data(args.conc_dir)
 	conc = scale_concentration(conc)
 # 	splitting = scale_splitting(splitting)
-	write_to_file(args.out_file, solute, solvent, conc, splitting)
+	write_to_file(args.out_dir, solute, solvent, conc, splitting)
 
 
 if __name__ == '__main__':
