@@ -85,7 +85,7 @@ class Layer:
 					self.extinct.append(K)
 				
 	def set_wavelengths(self):
-		"""Creates a new set of evenly-spaced wavelengths from start and 
+		"""Creates a new set of linearly-spaced wavelengths from start and 
 		   endpoint wavelengths and number of points specified in yaml config file."""
 		new_wl = np.linspace(self.min_wl, self.max_wl, num=self.num_points, endpoint=True)
 		return new_wl
@@ -112,7 +112,6 @@ class Layer:
 			self.extinct = new_K(self.wavelength)
 			for idx, lmbda in enumerate(self.wavelength):
 				self.waves[lmbda] = self.index[idx] + 1j*self.extinct[idx]
-
 		
 	def wavenumber(self, n, omega, theta=0):
 		"""Outputs the wavenumbers for the dielectric for the given
@@ -125,7 +124,7 @@ class Layer:
 	def propagation_matrix(self, wavenumber):
 		"""Inputs: wave number, thickness of medium
 		   Output: propagation matrix (phase accumulation for plane wave 
-					propagating through homogeneous medium)."""	
+					propagating through homogeneous medium)."""
 		phi = wavenumber*self.thickness
 		P_i = np.array([[np.exp(-1j*phi), 0], [0, np.exp(1j*phi)]])
 	
@@ -353,10 +352,10 @@ def output_TRA(wavelens, trans, refl, absor):
 	with open (output, 'w') as out_file:
 	#TODO: Also output wavenumbers
 		filewriter = csv.writer(out_file, delimiter=',')
-		header = ['Wavelength (um)', 
-				  'Transmittance (%)', 
-				  'Reflectance (%)', 
-				  'Absorptance (%)']
+		header = ['Wavelength', 
+				  'Transmittance', 
+				  'Reflectance', 
+				  'Absorptance']
 		filewriter.writerow(header)
 		i = 0
 		while i < len(trans):

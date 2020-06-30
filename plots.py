@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from matplotlib.ticker import AutoMinorLocator
+import matplotlib.ticker as ticker
 from scipy import constants
 import convert_unit
 
@@ -27,7 +27,7 @@ def get_splitting_results(splitting_file):
 
 # Plotting functions
 
-def TRA_plots(inputfile, outputfile, save_dir=None):
+def TRA_plots(inputfile, save_file=None):
 	wavelength = []
 	wavenumber = []
 	transmittance = []
@@ -48,23 +48,25 @@ def TRA_plots(inputfile, outputfile, save_dir=None):
 
 	print("Generating plots...")
 # 	fig, axs = plt.subplots(3, 1, sharex=True)
-	fig, ax = plt.subplots()
+	fig, ax = plt.subplots(figsize=(20, 10))
 	gs1 = gridspec.GridSpec(3, 1)
 	gs1.update(wspace=0.025, hspace=0.005)
 
 # 	ax = axs[0]
 	ax.plot(wavenumber, transmittance,
-			color='b',
-			linewidth=0.8,
+			color='k',
+			linewidth=2.,
 			label="transfer matrix")
-	if args.transmission:
-		ax.plot(wl_T_data, T_data, linestyle="dashed", color='#FF5733', label="downloaded data")
-	ax.set_ylabel('Transmittance %', fontsize=12)
-	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=12)
-	ax.tick_params(axis='both', labelsize=12)
-	ax.set_xlim(2300, 1600)
-	ax.set_ylim(0.0, 0.06)
-	ax.axvline(2173, color='r', linestyle='dashed')
+# 	if args.transmission:
+# 		ax.plot(wl_T_data, T_data, linestyle="dashed", color='#FF5733', label="downloaded data")
+	ax.set_ylabel('Transmittance %', fontsize=24)
+	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=24)
+	ax.tick_params(axis='both', which='both', direction='in', right=True, top=True, labelsize=18)
+	ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
+	ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(5))
+	ax.set_xlim(4000, 500)
+# 	ax.set_ylim(0.0, 0.06)
+# 	ax.axvline(2173, color='r', linestyle='dashed')
 # 	ax.xaxis.set_ticks(np.arange(2500, 1000, 5))
 
 
@@ -89,16 +91,14 @@ def TRA_plots(inputfile, outputfile, save_dir=None):
 # 	ax.set_xlabel('Wavelength ($\mu$m)', fontsize=12)
 	
 
-	title = "Transfer Matrix Method"
-	plt.suptitle(title, fontsize=18)
-	plt.subplots_adjust(top=0.9)
+	plot_title = "Transfer Matrix Method"
+	plt.suptitle(plot_title, fontsize=24)
+	plt.subplots_adjust(top=1.0)
 # 	plt.tight_layout()
 
-	if save_dir:
-		print("Saving figure as pdf")
-		file_name = outputfile
-# 		output_file = os.path.join(args.savedir, outputfile)
-		fig.savefig(outputfile, bbox_inches='tight')
+	if save_file:
+		print("Saving figure as pdf to {}".format(save_file))
+		fig.savefig(save_file, bbox_inches='tight')
 
 	else:
 		plt.show()
