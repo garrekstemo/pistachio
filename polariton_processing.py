@@ -195,7 +195,6 @@ def get_sample_params(directory):
 
 def truncate_data(xdata, ydata, bound1, bound2):
 	"""Truncate data to isolate desired peaks for fitting"""
-
 	i = 0
 	MAX = len(xdata)
 	lower_pt = 0
