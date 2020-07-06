@@ -1,4 +1,4 @@
-#! /anaconda3/bin/python
+#!/usr/bin/env python
 
 # Convention used
 # Psi(x, t) = Psi_0 * exp(i(kx - wt))
@@ -20,7 +20,6 @@ import time
 from ruamel_yaml import YAML
 import pdb
 
-
 c = sc.c  # speed of light
 h = sc.h  # planck's constant
 yaml = YAML()
@@ -28,7 +27,7 @@ yaml = YAML()
 
 class Layer:
 
-	def __init__(self, material, num_points=0, min_wl=0, max_wl=0, thickness=0):
+	def __init__(self, material, num_points=0.0, min_wl=0.0, max_wl=0.0, thickness=0.0):
 		self.material = material
 		self.thickness = thickness
 		self.num_points = num_points
@@ -126,11 +125,11 @@ class Layer:
 		   Output: propagation matrix (phase accumulation for plane wave 
 					propagating through homogeneous medium)."""
 		phi = wavenumber*self.thickness
-		P_i = np.array([[np.exp(-1j*phi), 0], [0, np.exp(1j*phi)]])
+		P_i = np.array([[np.exp(-1j*phi), 0.0], [0.0, np.exp(1j*phi)]])
 	
 		return P_i
 
-	def dynamical_matrix(self, n_, theta=0.):
+	def dynamical_matrix(self, n_, theta=0.0):
 		"""Inputs: index of refraction, angle of incidence
 			Outputs: dynamical matrices for s-wave and p-wave."""
 		
