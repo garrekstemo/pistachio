@@ -23,7 +23,14 @@ import pdb
 c = sc.c  # speed of light
 h = sc.h  # planck's constant
 yaml = YAML()
+# FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s - %(message)s")
+FORMATTER = logging.Formatter("%(message)s")
+LOG_FILE = 'transfer_matrix.log'
 
+class Light:
+
+	def __init__(self, num_points, min_wl, max_wl):
+		self.num_points = num_points
 
 class Layer:
 
@@ -145,8 +152,7 @@ class Layer:
 		elif args.pwave:
 			return Dp
 		else:
-			print("")
-			print("Error: No wave polarization passed in. See --help for more info. Exiting....")
+			logger.debug("No wave polarization passed in. See --help for more info. Exiting....")
 			sys.exit()
 
 
@@ -161,12 +167,14 @@ def get_layers_from_yaml(device_dict):
 	"""Takes device dictionary and outputs all layer objects as a list."""
 	val1 = 'layers'
 	val2 = 'num_points'
-	val3 = 'min_wl'
-	val4 = 'max_wl'
+	val3 = 'min_wavelength'
+	val4 = 'max_wavelength'
 	
 	num_layers = len(device_dict[val1])
-	print("Number of layers:", num_layers)
 	num_points = int(device_dict[val2])
+	
+	logger.info("Num points: {}".format(num_points))
+	logger.info("Number of layers: {}".format(num_layers))
 	
 	# Minimum and maximum desired wavelengths
 	min_wl = float(device_dict[val3])
@@ -179,9 +187,9 @@ def get_layers_from_yaml(device_dict):
 		layer = device_dict['layers'][layer_str]
 		material = layer['material']
 		thickness = float(layer['thickness']) * 10**-9
-
 		layer_class = Layer(material, num_points, min_wl, max_wl, thickness)
-		
+		logger.info(str(layer_class.material) + ", d=" + str(int(layer_class.thickness*10**9)) + "nm")
+
 		if "param_path" in layer:
 			params = layer['param_path']
 			if 'txt' in params:
@@ -193,9 +201,10 @@ def get_layers_from_yaml(device_dict):
 			layer_class.extinct = layer['extinction']
 			layer_class.wavelength = layer['wavelength']
 		else:
-			print("ERROR: Incorrect yaml config format. Reference default template.")
+			logger.debug("ERROR: Incorrect yaml config format. Reference default template.")
 			
 		layers.append(layer_class)
+
 
 	return layers
 
@@ -308,7 +317,7 @@ def matrix_product(matrices):
 	i = 0
 	M = np.array([[1,0], [0,1]])
 	for i in matrices:
-		M = np.dot(M, i)
+		M = np.matmul(M, i)
 	return M
 
 def field_amp(matrix_list, A0_, B0_):
@@ -343,12 +352,14 @@ def field_amp(matrix_list, A0_, B0_):
 	return field
 	
 
-def output_TRA(wavelens, trans, refl, absor):
+def output_TRA(angle, output_dir, rows):
 	"""Writes transmission, reflectance, abosorbance data to csv file"""
 	
-	print("")
-	output = os.path.abspath(args.output)
-	with open (output, 'w') as out_file:
+	wavelens, trans, refl, absor = rows
+# 	output = os.path.abspath(args.output)
+	file_name = 'deg' + str(angle)
+	output_file = os.path.join(output_dir, file_name)
+	with open (output_file, 'w') as out_file:
 	#TODO: Also output wavenumbers
 		filewriter = csv.writer(out_file, delimiter=',')
 		header = ['Wavelength', 
@@ -361,7 +372,7 @@ def output_TRA(wavelens, trans, refl, absor):
 			row = [wavelens[i], trans[i], refl[i], absor[i]]
 			filewriter.writerow(row)
 			i+=1
-	print("Wrote results to {}".format(output))
+	logger.info("Wrote results to {}".format(output_file))
 	return 0
 	
 	
@@ -386,7 +397,6 @@ def output_field_profile(wavelens, layers, E_amps):
 	profile = []
 	for idx, l in enumerate(layer_coords):
 		if idx == LAST:
-# 			print(idx, "last one")
 			domain = np.linspace(l, MAX, num_pts)
 			x.append(domain)
 		else:
@@ -418,7 +428,7 @@ def output_field_profile(wavelens, layers, E_amps):
 			row = [x[i], profile[i]]
 			filewriter.writerow(row)
 			i+=1
-	print("Wrote field output to {}".format(field_output))		
+	logger.info("Wrote field output to {}".format(field_output))		
 
 	plt.show()
 	
@@ -450,7 +460,7 @@ def transmission_matrix(r_ij, t_ij):
 # ========= ========= ========= ========= ========== ========= ======== #
 
 
-def main_loop():
+def main_loop(output_dir):
 	"""Executes transfer matrix and other functions
 	   Writes output file."""
 
@@ -458,88 +468,115 @@ def main_loop():
 	device = get_dict_from_yaml(args.device)  # yaml config file stored as dictionary
 	layers = get_layers_from_yaml(device)  # a list of layer objects
 	em_wave = device['wave']
-	inc_ang = em_wave['theta_in']
+	theta_i = em_wave['theta_i']  # Initial incident wave angle
+	theta_f = em_wave['theta_f']  # Final incident wave angle
+	num_angles = em_wave['num_angles']  # Number of angles to sweep through
+	angles = np.linspace(theta_i, theta_f, num_angles)
 	
+	logger.info('theta_i: {}, theta_f: {}, num angles: {}'.format(theta_i, theta_f, num_angles))
 	for layer in layers:
-		# interpolating from downloaded index data, making new data points
-		#TODO: Why am I doing this?
-		print(str(layer.material) + ", d=" + str(int(layer.thickness*10**9)) + "nm")
+		# interpolating from downloaded index data so number of data points match.
+		#TODO: Am I doing this correctly?
 		layer.make_new_data_points()
 
-	# We should separate this from the Layer class.
-	# This should be stored as an array somewhere.
+	#TODO: We should separate this from the Layer class.
 	wavelens = layers[0].wavelength  # still in units of um
 
+	#TODO: Don't hard-code this directory when testing is done.
+	sim_folder = os.path.join(output_dir, 'testing_sim_folder')
+	if not os.path.exists(sim_folder):
+		os.makedirs(sim_folder)
 	
-	#TODO: Organize outputs better cuz there'll probably be a lot of them.
-	# Outputs
-	T = []
-	R = []
-	A = []
-	E_amps = []
-	intensity = []
+	for angle in angles:
+		logger.info('Angle: {}'.format(angle))
+		#TODO: Organize outputs better cuz there'll probably be a lot of them.
+		# Outputs
+		T = []
+		R = []
+		A = []
+		E_amps = []
+		intensity = []
 	
-# 	alpha = attenuation_coefficient(efield, k)
+	# 	alpha = attenuation_coefficient(efield, k)
 
-	for lmbda in wavelens:
+		for lmbda in wavelens:
 
-		M = build_matrix_list(lmbda, inc_ang, layers)
-		TM = np.linalg.multi_dot(M)
-		trns = transmittance(TM).real
-		refl = reflectance(TM).real
-# 		field = field_amp(M, device["wave"]['A0'], device['wave']['B0'])
-		logging.info('Only using forward-propagating field values')
-# 		field = [f[0] for f in field]
+			M = build_matrix_list(lmbda, angle, layers)
+			TM = np.linalg.multi_dot(M)
+			trns = transmittance(TM).real
+			refl = reflectance(TM).real
+	# 		field = field_amp(M, device["wave"]['A0'], device['wave']['B0'])
+	# 		logging.info('Only using forward-propagating field values')
+	# 		field = [f[0] for f in field]
 			
-# 		E_amps.append(field)
-		T.append(trns)
-		R.append(refl)
-		abso = 1 - trns - refl
-		A.append(abso)
+	# 		E_amps.append(field)
+			T.append(trns)
+			R.append(refl)
+# 			abso = 1 - trns - refl
+			A.append(1 - trns - refl)
 
-	#Write everything to a csv file
-	output_TRA(wavelens, T, R, A)
-# 	output_field_profile(wavelens, layers, E_amps)
+		#Write everything to a csv file
+		output_TRA(angle, sim_folder, [wavelens, T, R, A])
+	# 	output_field_profile(wavelens, layers, E_amps)
 
 
-def main():
-
-	LOG_FILENAME = 'transfer_matrix.log'
-	logging.basicConfig(filename=LOG_FILENAME, level=logging.INFO)
-	print("\nStart simulation\n")
+def get_console_handler():
+	console_handler = logging.StreamHandler(sys.stdout)
+	console_handler.setFormatter(FORMATTER)
+	return console_handler
 	
-	start_time = time.time()
-	main_loop()
-	end_time = time.time()
-	elapsed_time = np.round(end_time - start_time, 4)
-	logging.info('elapsed time: {} seconds'.format(elapsed_time))
+# def get_file_handler():
+# 	file_handler = TimedRotatingFileHandler(LOG_FILE, when='midnight')
+# 	file_handler.setFormatter(FORMATTER)
+# 	return file_handler
+
+def get_logger(args, logger_name):
+	"""Configure logging."""
+	logger = logging.getLogger(logger_name)
+# 	logger.setLevel(logging.DEBUG)
+	if args.debug:
+		logger.setLevel(logging.DEBUG)
+	else:
+		logger.setLevel(logging.INFO)
+	logger.addHandler(get_console_handler())
+# 	logger.addHandler(get_file_handler())
+	logger.propagate = False
+	return logger
 	
-	print("Simulation time: {} seconds".format(elapsed_time))
-
-
-if __name__ == '__main__':
+def parse_arguments():
 	parser = argparse.ArgumentParser()
 	device_help = "path for a yaml file from config_files describing a device"
 	output_help = "path and name for output data file (must be .csv)"
 	pwave_help = "boolean, calculate for p-wave"
 	swave_help = "boolean, calculate for s-wave"
 	
-	parser.add_argument('--debug',
-						action='store_true',
-						help="doesn't do anything right now")
-	parser.add_argument("device",
-						help=device_help)
+	parser.add_argument('--debug', action='store_true', help="Enable debugging.")
+	parser.add_argument("device", help=device_help)
 	parser.add_argument("output", help=output_help)
 	parser.add_argument('-p', '--pwave', help=pwave_help, action='store_true')
 	parser.add_argument('-s', '--swave', help=swave_help, action='store_true')
 # 	parser.add_argument('-T', '--angles', action='store_true')
-	debug_mode = parser.parse_args().debug
-	if debug_mode:
-		print("Debug mode\n")
-		
-	args = parser.parse_args()
-	
+
+	return parser.parse_args()
+
+
+def main(args):
+
+	logger.debug("Debugging enabled")
 	output_message = "Output file must be .csv"
 	assert args.output[-4:] == ".csv", output_message
-		
-	main()
+	logger.info("Start simulation")
+
+	
+	start_time = time.time()
+	main_loop(args.output)
+	end_time = time.time()
+	elapsed_time = np.round(end_time - start_time, 4)
+	logger.info('elapsed time: {} seconds'.format(elapsed_time))
+
+
+if __name__ == '__main__':
+
+	args = parse_arguments()
+	logger = get_logger(args, "TMM Logger")
+	main(args)
