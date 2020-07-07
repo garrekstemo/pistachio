@@ -28,7 +28,10 @@ FORMATTER = logging.Formatter("%(message)s")
 LOG_FILE = 'transfer_matrix.log'
 
 class Wave:
-
+	"""
+	Contains information about incident light and includes functions to
+	perform calculations and unit conversion.
+	"""
 	def __init__(self, min_wl, max_wl, num_points):
 		self.min_wl = min_wl  # Starting wavelength
 		self.max_wl = max_wl  # Ending wavelength
@@ -50,14 +53,17 @@ class Wave:
 
 
 class Layer:
-
+	"""
+	Contains information and functions related to a single material layer in
+	a multi-layer device.
+	"""
 	def __init__(self, material, num_points, min_wl=0.0, max_wl=0.0, thickness=0.0):
 		self.material = material
 		self.thickness = thickness
 		self.num_points = num_points
-		self.min_wl = min_wl  # starting wavelength
-		self.max_wl = max_wl  # ending wavelength
-		self.wavelengths = []  # array of free space wavelengths
+# 		self.min_wl = min_wl  # starting wavelength
+# 		self.max_wl = max_wl  # ending wavelength
+		self.wavelengths = []  # wavelengths from refractive index data. Used only for testing.
 		self.refractive_index = []  # array of refractive indices
 		self.extinction_coeff = []  # array of extinction coefficients
 		self.complex_refractive = {}  # Needs to be curly braces
@@ -129,7 +135,6 @@ class Layer:
 		elif isinstance(self.refractive_index, list):
 			new_n = sp.interpolate.interp1d(self.wavelengths, self.refractive_index, fill_value='extrapolate')
 			new_K = sp.interpolate.interp1d(self.wavelengths, self.extinction_coeff, fill_value='extrapolate')
-			
 			self.refractive_index = new_n(wavelengths)
 			self.extinction_coeff = new_K(wavelengths)
 			for idx, lmbda in enumerate(wavelengths):
@@ -161,10 +166,10 @@ def get_layers_from_yaml(device_dict):
 	num_layers = len(device_dict[val1])
 	num_points = int(device_dict[val2])
 
-	logger.info("Num points: {}".format(num_points))
-	logger.info("Number of layers: {}".format(num_layers))
+# 	logger.info("Num points: {}".format(num_points))
+# 	logger.info("Number of layers: {}".format(num_layers))
 
-	# Minimum and maximum desired wavelengths
+	# Minimum and maximum wavelengths from yaml config file
 	min_wl = float(device_dict[val3])
 	max_wl = float(device_dict[val4])
 	layers = []
@@ -176,7 +181,7 @@ def get_layers_from_yaml(device_dict):
 		material = layer['material']
 		thickness = float(layer['thickness']) * 10**-9
 		layer_class = Layer(material, num_points, min_wl, max_wl, thickness)
-		logger.info(str(layer_class.material) + ", d=" + str(int(layer_class.thickness*10**9)) + "nm")
+
 
 		if "param_path" in layer:
 			params = layer['param_path']
@@ -184,15 +189,15 @@ def get_layers_from_yaml(device_dict):
 				layer_class.get_data_from_txt(params)
 			elif 'csv' in params:
 				layer_class.get_data_from_csv(params)
-		elif "index" in layer:
-			layer_class.refractive_index = layer['index']
-			layer_class.extinction_coeff = layer['extinction']
+		elif "refractive_index" in layer:
+			layer_class.refractive_index = layer['refractive_index']
+			layer_class.extinction_coeff = layer['extinction_coeff']
 			layer_class.wavelengths = layer['wavelength']
 		else:
-			logger.debug("ERROR: Incorrect yaml config format. Reference default template.")
+			print("ERROR: Incorrect yaml config format. Reference default template.")
 
 		layers.append(layer_class)
-
+		print(str(layer_class.material) + ", d=" + str(int(layer_class.thickness*10**9)) + "nm")
 
 	return layers
 
@@ -271,7 +276,7 @@ def dynamical_matrix(n_, theta=0.0, wave_type='mixed'):
 		return Dp
 	elif wave_type == 'mixed':
 		pol_msg = "\nNo wave acceptable polarization passed in.\nMixed-wave not yet supported.\nSee --help for more info. Exiting...."
-		logger.debug(pol_msg)
+		print(pol_msg)
 		sys.exit()
 
 
@@ -394,7 +399,6 @@ def output_TRA(angle, output_dir, rows):
 # 	logger.info("Wrote results to {}".format(output_file))
 	return 0
 
-
 def output_field_profile(wavelens, layers, E_amps):
 	"""Take list of wavelengths"""
 	k = 0.2  # test wavenumber, 2000 cm^-1
@@ -447,11 +451,10 @@ def output_field_profile(wavelens, layers, E_amps):
 			row = [x[i], profile[i]]
 			filewriter.writerow(row)
 			i+=1
-	logger.info("Wrote field output to {}".format(field_output))
+	print("Wrote field output to {}".format(field_output))
 
 	plt.show()
 
-	return 0
 
 # ===== Fresnel equation functions below not used for now ===== #
 def fresnel(n1, n2, k1x, k2x):
@@ -503,7 +506,7 @@ def main_loop(device_yaml, output_dir, wave_type):
 	wave = Wave(min_wavelength, max_wavelength, num_points)
 	wave.make_wavelengths()  # still in units of um
 
-	logger.info('theta_i: {}, theta_f: {}, num angles: {}'.format(theta_i, theta_f, num_angles))
+# 	logger.info('theta_i: {}, theta_f: {}, num angles: {}'.format(theta_i, theta_f, num_angles))
 	for layer in layers:
 		# interpolating from downloaded index data so number of data points match.
 		#TODO: Am I doing this correctly?
@@ -618,5 +621,5 @@ def main(args):
 if __name__ == '__main__':
 
 	args = parse_arguments()
-	logger = get_logger(args, "TMM Logger")
+	logger = get_logger(args, __name__)
 	main(args)
