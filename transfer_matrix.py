@@ -1,27 +1,30 @@
 #!/usr/bin/env python
+"""
+Name: Transfer Matrix
+Author: Garrek Stemo
 
-# Convention used
-# Psi(x, t) = Psi_0 * exp(i(kx - wt))
-# n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary part.
-
+Convention used:
+Psi(x, t) = Psi_0 * exp(i(kx - wt))
+n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary part.
+Yeh, Pochi. 2005. Optical Wave in Layered Media.
+"""
 import argparse
+import csv
+import logging
 import os
 import sys
-import csv
+import time
+import importlib.resources as pkg_resources
 from itertools import tee
-import logging
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
+from ruamel_yaml import YAML
 import scipy as sp
 import scipy.constants as sc
 import scipy.interpolate
-import time
-from ruamel_yaml import YAML
 import pdb
 
-c = sc.c  # speed of light
-h = sc.h  # planck's constant
 yaml = YAML()
 # FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s - %(message)s")
 FORMATTER = logging.Formatter("%(message)s")
@@ -61,8 +64,6 @@ class Layer:
 		self.material = material
 		self.thickness = thickness
 		self.num_points = num_points
-# 		self.min_wl = min_wl  # starting wavelength
-# 		self.max_wl = max_wl  # ending wavelength
 		self.wavelengths = []  # wavelengths from refractive index data. Used only for testing.
 		self.refractive_index = []  # array of refractive indices
 		self.extinction_coeff = []  # array of extinction coefficients
@@ -112,12 +113,6 @@ class Layer:
 				if line[2]:
 					K = float(line[2])
 					self.extinction_coeff.append(K)
-
-# 	def set_wavelengths(self):
-# 		"""Creates a new set of linearly-spaced wavelengths from start and
-# 		   endpoint wavelengths and number of points specified in yaml config file."""
-# 		new_wl = np.linspace(self.min_wl, self.max_wl, num=self.num_points, endpoint=True)
-# 		return new_wl
 
 	def make_new_data_points(self, wavelengths):
 		"""
@@ -279,7 +274,6 @@ def dynamical_matrix(n_, theta=0.0, wave_type='mixed'):
 		print(pol_msg)
 		sys.exit()
 
-
 def reflectance(M_):
     """Input: multilayer matrix, M.
        Output: reflectance calculation."""
@@ -355,7 +349,7 @@ def field_amp(matrix_list, A0_, B0_):
 	E0 = np.array([A0_, B0_])
 
 	i = len(matrix_list) - 1
-	slice = 3  # slice first three matrices from list after each dot product
+	slice_matrices = 3  		# slice first three matrices from list after each dot product
 	M = matrix_product(matrix_list)
 	E_s = np.dot(M, E0)
 	field_rev.append(E_s)
@@ -365,7 +359,7 @@ def field_amp(matrix_list, A0_, B0_):
 		M_i = matrix_product(matrix_list)
 		E_i = np.dot(M_i, E0)
 		field_rev.append(E_i)
-		matrix_list = matrix_list[slice:]
+		matrix_list = matrix_list[slice_matrices:]
 		i -= slice
 	if len(matrix_list) == 1:
 		E_i = np.dot(matrix_list[0], E0)
@@ -380,9 +374,9 @@ def output_TRA(angle, output_dir, rows):
 	"""Writes transmission, reflectance, abosorbance data to csv file"""
 
 	wavelens, trans, refl, absor = rows
-# 	output = os.path.abspath(args.output)
 	file_name = 'deg' + str(angle)
 	output_file = os.path.join(output_dir, file_name)
+
 	with open (output_file, 'w') as out_file:
 	#TODO: Also output wavenumbers
 		filewriter = csv.writer(out_file, delimiter=',')
@@ -440,8 +434,10 @@ def output_field_profile(wavelens, layers, E_amps):
 	ax.axvline(x=layer_coords[2])
 	ax.axvline(x=layer_coords[3])
 
-
-	field_output = '/Users/garrek/projects/pistachio/data/out/field_test.csv'
+	field_output = ''
+	#TODO: Test and finish this.
+	with pkg_resources.path('data', 'out/field_test.csv') as field:
+		field_output = field
 	with open (field_output, 'w') as out_file:
 		filewriter = csv.writer(out_file, delimiter=',')
 		header = ['x', 'field']
@@ -498,8 +494,7 @@ def main_loop(device_yaml, output_dir, wave_type):
 	num_angles = em_wave['num_angles']  # Number of angles to sweep through
 	angles = np.linspace(theta_i, theta_f, num_angles)
 	
-	# Initialize Wave class
-	
+	# Initialize Wave class	
 	min_wavelength = float(device['min_wavelength'])
 	max_wavelength = float(device['max_wavelength'])
 	num_points = int(device['num_points'])
@@ -507,9 +502,9 @@ def main_loop(device_yaml, output_dir, wave_type):
 	wave.make_wavelengths()  # still in units of um
 
 # 	logger.info('theta_i: {}, theta_f: {}, num angles: {}'.format(theta_i, theta_f, num_angles))
+	# interpolating from downloaded index data so number of data points match.
 	for layer in layers:
-		# interpolating from downloaded index data so number of data points match.
-		#TODO: Am I doing this correctly?
+
 		layer.make_new_data_points(wave.wavelengths)
 
 

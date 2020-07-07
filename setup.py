@@ -5,7 +5,7 @@ with open("README.md", 'r') as fh:
 
 setuptools.setup(
     name="Pistachio",
-    version="0.7.0",
+    version="0.7.1",
     author="Garrek Stemo",
     author_email="stemo.garrek_danneker.se3@ms.naist.jp",
     description="A transfer matrix algorithm and related packages",
