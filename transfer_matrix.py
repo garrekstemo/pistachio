@@ -27,30 +27,47 @@ yaml = YAML()
 FORMATTER = logging.Formatter("%(message)s")
 LOG_FILE = 'transfer_matrix.log'
 
-class Light:
+class Wave:
 
-	def __init__(self, num_points, min_wl, max_wl):
-		self.num_points = num_points
+	def __init__(self, min_wl, max_wl, num_points):
+		self.min_wl = min_wl  # Starting wavelength
+		self.max_wl = max_wl  # Ending wavelength
+		self.num_points = num_points  # Number of wavelengths between min_wl and max_wl
+		
+	def make_wavelengths(self):
+		"""Generate linearly-spaced wavelengths between min_wl and max_wl
+		   with number of wavelengths equal to num_points"""
+		return np.linspace(self.min_wl, self.max_wl, self.num_points)
+		
+	def wavelength_to_wavenumber(self, wavelengths):
+		"""Convert micrometers to cm-1 for an array of wavelengths"""
+		return [10**4 / l for l in wavelengths]
+	
+	def wavenumber_to_eV(self, wavenumbers):
+		"""Convert from cm-1 to eV for an array of wavenumbers"""
+		return [sc.h * sc.c * k * 100.0 / sc.elementary_charge for k in wavenumbers]
+			
+			
 
 class Layer:
 
-	def __init__(self, material, num_points=0.0, min_wl=0.0, max_wl=0.0, thickness=0.0):
+	def __init__(self, material, num_points, min_wl=0.0, max_wl=0.0, thickness=0.0):
 		self.material = material
 		self.thickness = thickness
 		self.num_points = num_points
 		self.min_wl = min_wl  # starting wavelength
 		self.max_wl = max_wl  # ending wavelength
-		self.wavelength = []  # array of free space wavelengths
-		self.index = []  # array of refractive indices
-		self.extinct = []  # array of extinction coefficients
+		self.wavelengths = []  # array of free space wavelengths
+		self.refractive_index = []  # array of refractive indices
+		self.extinction_coeff = []  # array of extinction coefficients
 		self.waves = {}  # Needs to be curly braces
 		
 	def __repr__(self):
 		a = "{} \n".format(self.material)
 		b = "thickness: {}\n".format(self.thickness)
-		c = "wavelength: {}\n".format(self.wavelength)
-		d = "refractive index: {}\n".format(self.index)
-		e = "extinction coefficient: {}\n".format(self.extinct)
+		c = "wavelengths: {}\n".format(self.wavelengths)
+		d = "refractive index: {}\n".format(self.refractive_index)
+		e = "extinction coefficient: {}\n".format(self.extinction_coeff)
 		return a+b+c+d+e
 
 	def get_data_from_csv(self, index_path):
@@ -61,13 +78,13 @@ class Layer:
 			for row in reader:
 				wl = float(row[0])
 				n = float(row[1])
-				self.wavelength.append(wl)
-				self.index.append(n)
+				self.wavelengths.append(wl)
+				self.refractive_index.append(n)
 				try:
 					K = float(row[2])
-					self.extinct.append(K)
+					self.extinction_coeff.append(K)
 				except IndexError:
-					self.extinct.append(0.)
+					self.extinction_coeff.append(0.)
 				
 	def get_data_from_txt(self, index_path):
 		"""Used for filmetrics.com data"""
@@ -84,42 +101,37 @@ class Layer:
 					wl = wl* unit
 				n = float(line[1])
 				
-				self.wavelength.append(wl)
-				self.index.append(n)
+				self.wavelengths.append(wl)
+				self.refractive_index.append(n)
 				if line[2]:
 					K = float(line[2])
-					self.extinct.append(K)
+					self.extinction_coeff.append(K)
 				
 	def set_wavelengths(self):
 		"""Creates a new set of linearly-spaced wavelengths from start and 
 		   endpoint wavelengths and number of points specified in yaml config file."""
 		new_wl = np.linspace(self.min_wl, self.max_wl, num=self.num_points, endpoint=True)
 		return new_wl
-		
-	def interpolate_refraction(self, x0, y0):
-		#WARNING: fill_value='extrapolate' might cause problems!!
-		new_y = sp.interpolate.interp1d(x0, y0, fill_value="extrapolate")
-		return new_y
 
 	def make_new_data_points(self):
 		"""Makes new data points based on user-defined num_points and interpolation."""
-		if not isinstance(self.index, list):
-			self.index = [self.index]*self.num_points	
-			self.extinct = [self.extinct]*self.num_points
-			self.wavelength = self.set_wavelengths()
-			for idx, lmbda in enumerate(self.wavelength):
-				self.waves[lmbda] = self.index[idx] + self.extinct[idx]
+		if not isinstance(self.refractive_index, list):
+			self.refractive_index = [self.refractive_index]*self.num_points	
+			self.extinction_coeff = [self.extinction_coeff]*self.num_points
+			self.wavelengths = self.set_wavelengths()
+			for idx, lmbda in enumerate(self.wavelengths):
+				self.waves[lmbda] = self.refractive_index[idx] + self.extinction_coeff[idx]
 
-		elif isinstance(self.index, list):
-			new_n = self.interpolate_refraction(self.wavelength, self.index)
-			new_K = self.interpolate_refraction(self.wavelength, self.extinct)
-			self.wavelength = self.set_wavelengths()
-			self.index = new_n(self.wavelength)
-			self.extinct = new_K(self.wavelength)
-			for idx, lmbda in enumerate(self.wavelength):
-				self.waves[lmbda] = self.index[idx] + 1j*self.extinct[idx]
+		elif isinstance(self.refractive_index, list):
+			new_n = sp.interpolate.interp1d(self.wavelengths, self.refractive_index, fill_value='extrapolate')
+			new_K = sp.interpolate.interp1d(self.wavelengths, self.extinction_coeff, fill_value='extrapolate')
+			self.wavelengths = self.set_wavelengths()
+			self.refractive_index = new_n(self.wavelengths)
+			self.extinction_coeff = new_K(self.wavelengths)
+			for idx, lmbda in enumerate(self.wavelengths):
+				self.waves[lmbda] = self.refractive_index[idx] + 1j*self.extinction_coeff[idx]
 		
-	def wavenumber(self, n, omega, theta=0):
+	def get_wavenumber(self, n, omega, theta=0):
 		"""Outputs the wavenumbers for the dielectric for the given
 		   angular frequency and angle"""
 
@@ -127,33 +139,7 @@ class Layer:
 		k_z = n*omega/sc.c * np.sin(theta)
 		return k_x, k_z
 
-	def propagation_matrix(self, wavenumber):
-		"""Inputs: wave number, thickness of medium
-		   Output: propagation matrix (phase accumulation for plane wave 
-					propagating through homogeneous medium)."""
-		phi = wavenumber*self.thickness
-		P_i = np.array([[np.exp(-1j*phi), 0.0], [0.0, np.exp(1j*phi)]])
-	
-		return P_i
 
-	def dynamical_matrix(self, n_, theta=0.0):
-		"""Inputs: index of refraction, angle of incidence
-			Outputs: dynamical matrices for s-wave and p-wave."""
-		
-		# s-wave dynamical matrix
-		m = n_ * np.cos(theta)
-		Ds = np.array([[1, 1], [m, -m]])
-					 
-		# p-wave dynamical matrix
-		Dp = np.array([[np.cos(theta), np.cos(theta)], [n_, -n_]])
-		
-		if args.swave:
-			return Ds
-		elif args.pwave:
-			return Dp
-		else:
-			logger.debug("No wave polarization passed in. See --help for more info. Exiting....")
-			sys.exit()
 
 
 def get_dict_from_yaml(yaml_file):
@@ -197,9 +183,9 @@ def get_layers_from_yaml(device_dict):
 			elif 'csv' in params:
 				layer_class.get_data_from_csv(params)
 		elif "index" in layer:
-			layer_class.index = layer['index']
-			layer_class.extinct = layer['extinction']
-			layer_class.wavelength = layer['wavelength']
+			layer_class.refractive_index = layer['index']
+			layer_class.extinction_coeff = layer['extinction']
+			layer_class.wavelengths = layer['wavelength']
 		else:
 			logger.debug("ERROR: Incorrect yaml config format. Reference default template.")
 			
@@ -256,6 +242,36 @@ def kramers_kronig(alpha):
 	"""NOT IMPLEMENTED.
 	Takes attenuation coefficient. Returns real part of index of refraction."""
 
+
+def propagation_matrix(wavenumber, layer_thickness):
+	"""Inputs: wave number, thickness of medium
+	   Output: propagation matrix (phase accumulation for plane wave 
+				propagating through homogeneous medium)."""
+	phi = wavenumber*layer_thickness
+	P_i = np.array([[np.exp(-1j*phi), 0.0], [0.0, np.exp(1j*phi)]])
+
+	return P_i
+
+def dynamical_matrix(n_, theta=0.0):
+	"""Inputs: index of refraction, angle of incidence
+		Outputs: dynamical matrices for s-wave and p-wave."""
+	
+	# s-wave dynamical matrix
+	m = n_ * np.cos(theta)
+	Ds = np.array([[1, 1], [m, -m]])
+				 
+	# p-wave dynamical matrix
+	Dp = np.array([[np.cos(theta), np.cos(theta)], [n_, -n_]])
+	
+	if args.swave:
+		return Ds
+	elif args.pwave:
+		return Dp
+	else:
+		logger.debug("No wave polarization passed in. See --help for more info. Exiting....")
+		sys.exit()
+		
+
 def reflectance(M_):
     """Input: multilayer matrix, M.
        Output: reflectance calculation."""
@@ -292,10 +308,10 @@ def build_matrix_list(wavelength, theta, layers):
 	for idx, layer in enumerate(layers):
 
 		n = layer.waves[wavelength]
-		kx = layer.wavenumber(n, omega, theta)[0]
-		D = layer.dynamical_matrix(n, theta)
+		kx = layer.get_wavenumber(n, omega, theta)[0]
+		D = dynamical_matrix(n, theta)
 		Dinv = np.linalg.inv(D)
-		P = layer.propagation_matrix(kx)
+		P = propagation_matrix(kx, layer.thickness)
 		
 		if idx == 0:
 			matrices.append(Dinv)
@@ -460,12 +476,15 @@ def transmission_matrix(r_ij, t_ij):
 # ========= ========= ========= ========= ========== ========= ======== #
 
 
-def main_loop(output_dir):
-	"""Executes transfer matrix and other functions
-	   Writes output file."""
+def main_loop(device_yaml, output_dir):
+	"""
+	Inputs: yaml file containing information about device and incident radiation.
+	Outputs: Executes transfer matrix and other functions
+	   		 Writes output file.
+	"""
 
 	# Inputs
-	device = get_dict_from_yaml(args.device)  # yaml config file stored as dictionary
+	device = get_dict_from_yaml(device_yaml)  # yaml config file stored as dictionary
 	layers = get_layers_from_yaml(device)  # a list of layer objects
 	em_wave = device['wave']
 	theta_i = em_wave['theta_i']  # Initial incident wave angle
@@ -480,7 +499,7 @@ def main_loop(output_dir):
 		layer.make_new_data_points()
 
 	#TODO: We should separate this from the Layer class.
-	wavelens = layers[0].wavelength  # still in units of um
+	wavelens = layers[0].wavelengths  # still in units of um
 
 	#TODO: Don't hard-code this directory when testing is done.
 	sim_folder = os.path.join(output_dir, 'testing_sim_folder')
@@ -563,13 +582,16 @@ def parse_arguments():
 def main(args):
 
 	logger.debug("Debugging enabled")
-	output_message = "Output file must be .csv"
-	assert args.output[-4:] == ".csv", output_message
+	
+	# NOTICE: USER NO LONGER HAS TO SPECIFY A FILE NAME
+	
+# 	output_message = "Output file must be .csv"
+# 	assert args.output[-4:] == ".csv", output_message
 	logger.info("Start simulation")
-
+	logger.info("Loading device parameters from {}".format(args.device))
 	
 	start_time = time.time()
-	main_loop(args.output)
+	main_loop(args.device, args.output)
 	end_time = time.time()
 	elapsed_time = np.round(end_time - start_time, 4)
 	logger.info('elapsed time: {} seconds'.format(elapsed_time))
