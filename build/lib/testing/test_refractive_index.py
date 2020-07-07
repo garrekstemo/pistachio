@@ -38,12 +38,12 @@ def test_interpolation(yaml_filename):
 	"""
 		
 	layer_num = 1  # Change layer number to test different layer
+	
 	# Get default directory with a bunch of test files
-# 	default_dir = os.path.join(os.path.dirname(__file__), 'default')
-	default_dir = os.path.dirname('/pistachio/default/')
-	print(default_dir)
-	yaml_data = os.path.join(default_dir, yaml_filename)
-	device = tmm.get_dict_from_yaml(yaml_data)
+	device = None
+	with pkg_resources.path('default', yaml_filename) as yaml_data:
+		device = tmm.get_dict_from_yaml(yaml_data)
+
 	layers = tmm.get_layers_from_yaml(device)
 	single_layer = layers[layer_num]  
 	
@@ -79,15 +79,15 @@ def test_transform(refractive_filename):
 	Test Hilbert transform on imaginary part of refractive index data and compare
 	to reference data.
 	"""
-	
-	default_dir = os.path.join(os.path.dirname(__file__), 'default')
-	refractive_file = os.path.join(default_dir, refractive_filename)
 
-	num_points = 100000
-	min_wl = 2.0
-	max_wl = 20.0
-	test_layer = tmm.Layer('material', num_points, min_wl, max_wl, 0.0)
-	test_layer.get_data_from_csv(refractive_file)
+	test_layer = None
+	with pkg_resources.path('default', refractive_filename) as refractive_file:
+
+		num_points = 100000
+		min_wl = 2.0
+		max_wl = 20.0
+		test_layer = tmm.Layer('material', num_points, min_wl, max_wl, 0.0)
+		test_layer.get_data_from_csv(refractive_file)
 	
 	original_wl = test_layer.wavelengths
 	original_ri = test_layer.refractive_index
@@ -102,8 +102,6 @@ def test_transform(refractive_filename):
 	
 	plt.show()
 	
-	
-
 
 def main():
 	
@@ -112,10 +110,6 @@ def main():
 # 	test_interpolation('fabry-perot_methanol_test.yaml')
 # 	test_transform('Methanol.csv')
 
-	with pkg_resources.path('default', 'fabry-perot_methanol_test.yaml') as p:
-		package_path = p
-
-	
 	
 if __name__=='__main__':
 	main()

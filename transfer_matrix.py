@@ -9,6 +9,7 @@ n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary p
 Yeh, Pochi. 2005. Optical Wave in Layered Media.
 """
 import argparse
+import codecs
 import csv
 import importlib.resources as pkg_resources
 import logging
@@ -24,6 +25,7 @@ from ruamel_yaml import YAML
 import scipy as sp
 import scipy.constants as sc
 import scipy.interpolate
+import data.refractive_index_data  # import directory containing refractive index info
 
 
 yaml = YAML()
@@ -65,8 +67,6 @@ class Layer:
 		self.material = material
 		self.thickness = thickness
 		self.num_points = num_points
-# 		self.min_wl = min_wl  # starting wavelength
-# 		self.max_wl = max_wl  # ending wavelength
 		self.wavelengths = []  # wavelengths from refractive index data. Used only for testing.
 		self.refractive_index = []  # array of refractive indices
 		self.extinction_coeff = []  # array of extinction coefficients
@@ -80,24 +80,34 @@ class Layer:
 		e = "extinction coefficient: {}\n".format(self.extinction_coeff)
 		return a+b+c+d+e
 
-	def get_data_from_csv(self, index_path):
-		"""Used for refractiveindex.info data. This site uses um for wavelength units."""
-		with open(index_path, 'r') as params:
-			reader = csv.reader(params)
-			next(reader, None)
-			for row in reader:
-				wl = float(row[0])
-				n = float(row[1])
-				self.wavelengths.append(wl)
-				self.refractive_index.append(n)
-				try:
-					K = float(row[2])
-					self.extinction_coeff.append(K)
-				except IndexError:
-					self.extinction_coeff.append(0.0)
+	def get_data_from_csv(self, refractive_filename):
+		"""
+		Extract refractive index data from file downloaded from refractiveindex.info. 
+		This site uses micrometers for wavelength units.
+		"""
+
+		with pkg_resources.path(data.refractive_index_data, refractive_filename) as params:
+			# pkg_resources will return a path, which includes the csv file we want to read
+			params = os.path.abspath(params)
+			with open(params, 'r') as csv_file:
+				csvreader = csv.reader(csv_file)
+				next(csvreader, None)
+				for row in csvreader:
+					wl = float(row[0])
+					n = float(row[1])
+					self.wavelengths.append(wl)
+					self.refractive_index.append(n)
+					try:
+						K = float(row[2])
+						self.extinction_coeff.append(K)
+					except IndexError:
+						self.extinction_coeff.append(0.0)
 
 	def get_data_from_txt(self, index_path):
-		"""Used for filmetrics.com data"""
+		"""
+		Extract refractive index data from file downloaded from for filmetrics.com.
+		WARNING: Not tested in a long time. The format may have changed. Code may have changed.
+		"""
 		with open(index_path, 'r') as params:
 			header = next(params)
 			unit = 1
@@ -179,7 +189,6 @@ def get_layers_from_yaml(device_dict):
 		material = layer['material']
 		thickness = float(layer['thickness']) * 10**-9
 		layer_class = Layer(material, num_points, min_wl, max_wl, thickness)
-
 
 		if "param_path" in layer:
 			params = layer['param_path']
@@ -574,7 +583,7 @@ def get_logger(args, logger_name):
 
 def parse_arguments():
 	parser = argparse.ArgumentParser()
-	device_help = "path for a yaml file from config_files describing a device"
+	device_help = "Path for a yaml file from config_files describing a device"
 	output_help = "path and name for output data file (must be .csv)"
 	pwave_help = "boolean, calculate for p-wave"
 	swave_help = "boolean, calculate for s-wave"
