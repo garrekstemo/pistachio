@@ -1,27 +1,34 @@
 #!/usr/bin/env python
+"""
+Name: Transfer Matrix
+Author: Garrek Stemo
 
-# Convention used
-# Psi(x, t) = Psi_0 * exp(i(kx - wt))
-# n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary part.
-
+Convention used:
+Psi(x, t) = Psi_0 * exp(i(kx - wt))
+n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary part.
+Yeh, Pochi. 2005. Optical Wave in Layered Media.
+"""
 import argparse
-import os
-import sys
+import codecs
 import csv
-from itertools import tee
+import importlib.resources as pkg_resources
 import logging
+import os
+import pdb
+import sys
+import time
+from itertools import tee
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
+from ruamel_yaml import YAML
 import scipy as sp
 import scipy.constants as sc
 import scipy.interpolate
-import time
-from ruamel_yaml import YAML
-import pdb
+import data.refractive_index_data  # import directory containing refractive index info
+import results
 
-c = sc.c  # speed of light
-h = sc.h  # planck's constant
+
 yaml = YAML()
 # FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s - %(message)s")
 FORMATTER = logging.Formatter("%(message)s")
@@ -61,8 +68,6 @@ class Layer:
 		self.material = material
 		self.thickness = thickness
 		self.num_points = num_points
-# 		self.min_wl = min_wl  # starting wavelength
-# 		self.max_wl = max_wl  # ending wavelength
 		self.wavelengths = []  # wavelengths from refractive index data. Used only for testing.
 		self.refractive_index = []  # array of refractive indices
 		self.extinction_coeff = []  # array of extinction coefficients
@@ -76,24 +81,34 @@ class Layer:
 		e = "extinction coefficient: {}\n".format(self.extinction_coeff)
 		return a+b+c+d+e
 
-	def get_data_from_csv(self, index_path):
-		"""Used for refractiveindex.info data. This site uses um for wavelength units."""
-		with open(index_path, 'r') as params:
-			reader = csv.reader(params)
-			next(reader, None)
-			for row in reader:
-				wl = float(row[0])
-				n = float(row[1])
-				self.wavelengths.append(wl)
-				self.refractive_index.append(n)
-				try:
-					K = float(row[2])
-					self.extinction_coeff.append(K)
-				except IndexError:
-					self.extinction_coeff.append(0.0)
+	def get_data_from_csv(self, refractive_filename):
+		"""
+		Extract refractive index data from file downloaded from refractiveindex.info. 
+		This site uses micrometers for wavelength units.
+		"""
+
+		with pkg_resources.path(data.refractive_index_data, refractive_filename) as params:
+			# pkg_resources will return a path, which includes the csv file we want to read
+			params = os.path.abspath(params)
+			with open(params, 'r') as csv_file:
+				csvreader = csv.reader(csv_file)
+				next(csvreader, None)
+				for row in csvreader:
+					wl = float(row[0])
+					n = float(row[1])
+					self.wavelengths.append(wl)
+					self.refractive_index.append(n)
+					try:
+						K = float(row[2])
+						self.extinction_coeff.append(K)
+					except IndexError:
+						self.extinction_coeff.append(0.0)
 
 	def get_data_from_txt(self, index_path):
-		"""Used for filmetrics.com data"""
+		"""
+		Extract refractive index data from file downloaded from for filmetrics.com.
+		WARNING: Not tested in a long time. The format may have changed. Code may have changed.
+		"""
 		with open(index_path, 'r') as params:
 			header = next(params)
 			unit = 1
@@ -112,12 +127,6 @@ class Layer:
 				if line[2]:
 					K = float(line[2])
 					self.extinction_coeff.append(K)
-
-# 	def set_wavelengths(self):
-# 		"""Creates a new set of linearly-spaced wavelengths from start and
-# 		   endpoint wavelengths and number of points specified in yaml config file."""
-# 		new_wl = np.linspace(self.min_wl, self.max_wl, num=self.num_points, endpoint=True)
-# 		return new_wl
 
 	def make_new_data_points(self, wavelengths):
 		"""
@@ -172,6 +181,10 @@ def get_layers_from_yaml(device_dict):
 	# Minimum and maximum wavelengths from yaml config file
 	min_wl = float(device_dict[val3])
 	max_wl = float(device_dict[val4])
+
+	print("Number of points: {}".format(num_points))
+	print("Wavelengths: [{}, {}]".format(min_wl, max_wl))
+
 	layers = []
 
 	for i in range(num_layers):
@@ -181,7 +194,6 @@ def get_layers_from_yaml(device_dict):
 		material = layer['material']
 		thickness = float(layer['thickness']) * 10**-9
 		layer_class = Layer(material, num_points, min_wl, max_wl, thickness)
-
 
 		if "param_path" in layer:
 			params = layer['param_path']
@@ -355,7 +367,7 @@ def field_amp(matrix_list, A0_, B0_):
 	E0 = np.array([A0_, B0_])
 
 	i = len(matrix_list) - 1
-	slice = 3  # slice first three matrices from list after each dot product
+	slice_matrices = 3  # slice first three matrices from list after each dot product
 	M = matrix_product(matrix_list)
 	E_s = np.dot(M, E0)
 	field_rev.append(E_s)
@@ -365,8 +377,8 @@ def field_amp(matrix_list, A0_, B0_):
 		M_i = matrix_product(matrix_list)
 		E_i = np.dot(M_i, E0)
 		field_rev.append(E_i)
-		matrix_list = matrix_list[slice:]
-		i -= slice
+		matrix_list = matrix_list[slice_matrices:]
+		i -= slice_matrices
 	if len(matrix_list) == 1:
 		E_i = np.dot(matrix_list[0], E0)
 		field_rev.append(E_i)
@@ -441,7 +453,9 @@ def output_field_profile(wavelens, layers, E_amps):
 	ax.axvline(x=layer_coords[3])
 
 
-	field_output = '/Users/garrek/projects/pistachio/data/out/field_test.csv'
+	field_output = ''
+	with pkg_resources.path('data', 'out/field_test.csv') as field:
+		field_output = field
 	with open (field_output, 'w') as out_file:
 		filewriter = csv.writer(out_file, delimiter=',')
 		header = ['x', 'field']
@@ -507,16 +521,16 @@ def main_loop(device_yaml, output_dir, wave_type):
 	wave.make_wavelengths()  # still in units of um
 
 # 	logger.info('theta_i: {}, theta_f: {}, num angles: {}'.format(theta_i, theta_f, num_angles))
+	# interpolating from downloaded index data so number of data points match.
 	for layer in layers:
-		# interpolating from downloaded index data so number of data points match.
-		#TODO: Am I doing this correctly?
 		layer.make_new_data_points(wave.wavelengths)
 
-
-	#TODO: Don't hard-code this directory when testing is done.
-	sim_folder = os.path.join(output_dir, 'testing_sim_folder')
-	if not os.path.exists(sim_folder):
-		os.makedirs(sim_folder)
+	# Make folder for simulation results
+	device_name = device_yaml.split('/')[-1].split('.')[0]  # Get filename without path or '.yaml'
+	sim_foldername = device_name + '_' + str(min_wavelength) + '-' + str(max_wavelength) + 'um' + '_' + str(theta_i) + '-' + str(theta_f) + 'deg'
+	sim_path = os.path.join(output_dir, sim_foldername)
+	if not os.path.exists(sim_path):
+		os.makedirs(sim_path)
 
 	for angle in angles:
 
@@ -546,7 +560,7 @@ def main_loop(device_yaml, output_dir, wave_type):
 			A.append(1 - trns - refl)
 
 		#Write everything to a csv file
-		output_TRA(angle, sim_folder, [wave.wavelengths, T, R, A])
+		output_TRA(angle, sim_path, [wave.wavelengths, T, R, A])
 	# 	output_field_profile(wavelens, layers, E_amps)
 
 
@@ -575,7 +589,7 @@ def get_logger(args, logger_name):
 
 def parse_arguments():
 	parser = argparse.ArgumentParser()
-	device_help = "path for a yaml file from config_files describing a device"
+	device_help = "Path for a yaml file from config_files describing a device"
 	output_help = "path and name for output data file (must be .csv)"
 	pwave_help = "boolean, calculate for p-wave"
 	swave_help = "boolean, calculate for s-wave"
