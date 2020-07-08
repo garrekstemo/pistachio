@@ -10,4 +10,8 @@ swift_TMM
 
 # Ignore output files
 data/out
+test/testing_sim_folder
 transfer_matrix.log
+
+# Ignore Python environments
+.env

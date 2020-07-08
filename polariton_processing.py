@@ -16,9 +16,11 @@ import re
 import sys
 import csv
 import numpy as np
+from pathlib import Path
 from scipy import optimize
 from scipy.interpolate import interp1d
 from scipy import constants
+from scipy import signal
 import matplotlib.pyplot as plt
 from ruamel_yaml import YAML
 import pdb
@@ -31,13 +33,13 @@ class Lorentzian:
 	def __init__(self, amplitude=None, x0=None, y0=None, gamma=None):
 		"""These parameters function as initial guesses for the fit function."""
 		if amplitude == None:
-			self.amplitude = 0.5
+			self.amplitude = 1.
 		if x0 == None:
-			self.x0 = 1000.
+			self.x0 = 2000.
 		if y0 == None:
-			self.y0 = 0.
+			self.y0 = 0.5
 		if gamma == None:
-			self.gamma = 30.
+			self.gamma = 100.
 
 	def set_amplitude(self, new_amp):
 		self.amplitude = new_amp
@@ -55,6 +57,7 @@ class Lorentzian:
 		"""Lorentzian function for numpy array, x"""
 		lor = self.y0 + self.amplitude * self.gamma**2 / ((x - self.x0)**2 + self.gamma**2)
 		return lor
+
 
 # ========== Get paramaters and data from user inputs and files ========== #
 
@@ -103,8 +106,8 @@ def get_initial_from_yaml(yaml_config):
 def get_data(spectral_data):
 	"""Retrieve csv spectral data and store in array."""
 
-	k = []
-	I = []
+	wavenumber_list = np.array([])
+	intensity_list = np.array([])
 	with open(spectral_data, 'r', errors='ignore') as spectrum:
 		csvreader = csv.reader(spectrum)
 		num_header_rows = 19   # Yeah this is hard coded. Not so great.
@@ -113,21 +116,21 @@ def get_data(spectral_data):
 		for row in csvreader:
 			if row:
 				wavenum = float(row[0])
-				Inten = float(row[1])
-				k.append(wavenum)
-				I.append(Inten)
+				inten = float(row[1])
+				wavenumber_list = np.append(wavenumber_list, wavenum)
+				intensity_list = np.append(intensity_list, inten)
 			else:
 				break
-
-	return np.array(k), np.array(I)
+	return wavenumber_list, intensity_list
 
 def get_angle_data_from_dir(directory):
 	"""Extracts angle-resolved and absorbance data from each file in the supplied directory"""
 
-	abs_k = [] 			 # absorbance wavenumbers
-	abs_I = []  		 # absorbance intensities
+	abs_wavenum = np.array([]) 			 # absorbance wavenumbers
+	abs_intensity = np.array([])			 # absorbance intensities
 	angle_data = []  # List with structure [[angle, [wavenumbers, intensities]], [...], ...]
 
+	#TODO: spectrum = spectrum.lower()
 	deg_str = 'deg'
 	abs_str = 'Abs'
 
@@ -144,10 +147,9 @@ def get_angle_data_from_dir(directory):
 
 			# Get absorbance data if the file exists (it should always exist)
 			if abs_str in spectrum:
-				print("Found absorbance data file.")
-				abs_k, abs_I = get_data(spec_file)
+				abs_wavenum, abs_intensity = get_data(spec_file)
 
-	absorbance_data = [abs_k, abs_I]
+	absorbance_data = np.stack((abs_wavenum, abs_intensity))
 	angle_data.sort()
 	
 	return angle_data, absorbance_data
@@ -193,7 +195,6 @@ def get_sample_params(directory):
 
 def truncate_data(xdata, ydata, bound1, bound2):
 	"""Truncate data to isolate desired peaks for fitting"""
-
 	i = 0
 	MAX = len(xdata)
 	lower_pt = 0
@@ -209,7 +210,7 @@ def truncate_data(xdata, ydata, bound1, bound2):
 	return xdata[lower_pt:upper_pt], ydata[lower_pt:upper_pt]
 
 
-# ============== Write results to various files ============== #
+# ============== Write results to files ============== #
 
 def write_angle_spec_to_file(angle_data_list, sample_name, out_path):
 	"""Takes angles list, wavenumber list, and intensity list.
@@ -269,8 +270,27 @@ def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav, sample_name, out_
 			row = [angles[i], E_up[i], E_lp[i], E_vib, E_cav[i]]
 			filewriter.writerow(row)
 			i+=1
-	print('')
+
 	print('Wrote dispersion results to {}'.format(output))
+	return 0
+
+def write_peakfit_residuals_to_file(wavenum, residuals, angle, outpath):
+	"""Writes dispersion residuals to file to evaluate the goodness of fit
+	   for peak fitting algorithm."""
+	
+	# Make a directory for the files we are about to make
+	residual_dir = os.path.join(outpath, 'residuals')
+	Path(residual_dir).mkdir(parents=True, exist_ok=True)
+	residual_filename = 'residuals_{}deg.csv'.format(angle)
+	output = os.path.join(residual_dir, residual_filename)
+
+	with open(output, 'w') as rf:
+		filewriter = csv.writer(rf, delimiter=',')
+		i = 0
+		while i < len(wavenum):
+			row = [wavenum[i], residuals[i]]
+			filewriter.writerow(row)
+			i+=1
 	return 0
 
 def write_splitting_fit_to_file(least_squares_results, sample_name, units, out_path):
@@ -305,9 +325,9 @@ def lor_1peak(x, A, x0, gamma, y0):
 	return lor
 
 def lor_2peak(x, A1, x0_1, gamma1, y0_1, A2, x0_2, gamma2, y0_2):
-	"""Lorentzian fitting function for two peaks"""
+	"""Lorentzian fitting function for two peaks. Note that y0_2 offset is not used."""
 	lor2 = y0_1 + A1 * gamma1**2 / ((x - x0_1)**2 + gamma1**2) \
-		   + y0_2 + A2 * gamma2**2 / ((x - x0_2)**2 + gamma2**2)
+			+ A2 * gamma2**2 / ((x - x0_2)**2 + gamma2**2)
 	return lor2
 
 def coupled_energies(theta, E0, Ee, Rabi, n_eff, branch=0):
@@ -432,6 +452,9 @@ def polariton_fitting(wavenum, intensity, fit_type, lorz1, lorz2):
 	half = int(len(wavenum)/2)
 	lor_fit = []
 	
+	popt1 = None
+	popt2 = None
+	
 	if fit_type == 'single_peak':
 
 		popt1, pcov1 = optimize.curve_fit(lor_1peak, wavenum[:half], intensity[:half], p01)
@@ -456,7 +479,11 @@ def polariton_fitting(wavenum, intensity, fit_type, lorz1, lorz2):
 	peak1_err = err1
 	peak2_err = err2
 
+	# Calculate residuals for curve fit validation
 	lor_fit = lor_2peak(wavenum, *peak1_args, *peak2_args)
+	residuals1 = intensity[:half] - lor_1peak(wavenum[:half], *peak1_args)
+	residuals2 = intensity[half:] - lor_1peak(wavenum[half:], *peak2_args)
+	residuals = np.concatenate((residuals1, residuals2))
 
 	amp1 = np.round([lorz1.amplitude, peak1_err[0]], 2)
 	center1 = np.round([lorz1.x0, peak1_err[1]], 2)
@@ -478,8 +505,30 @@ def polariton_fitting(wavenum, intensity, fit_type, lorz1, lorz2):
 # 	print("Center = ", center2[0], u'\u00b1', center2[1])
 # 	print('sigma = ', gamma2[0], u'\u00b1', gamma2[1])
 
-	return lor_fit, lorz1, lorz2
+	return lor_fit, lorz1, lorz2, residuals
 
+def splitting_least_squares(initial, angles, Elp, Eup):
+	"""Takes initial guesses: [E_cav_0, E_vib, Rabi, n].
+	   Takes angles (in degrees), and experimental upper and lower polariton data.
+	   Returns nonlinear least squares fit."""
+
+	angles = convert_unit.deg_to_rad(angles)
+	#TODO: What units do we really want here? Unitless to convert later?
+	# Commented out for now so that unit conversions happen in plots.py
+# 	Elp = [wavenum_to_ev(i) for i in Elp]
+# 	Eup = [wavenum_to_ev(i) for i in Eup]
+
+	print("Performing default nonlinear least squares fit.")
+	optim = optimize.least_squares(error_f,
+								   x0=initial,
+								   args=(angles, Elp, Eup))
+	return optim
+
+def find_polariton_peaks(wavenum, intensity):
+	"""Not Implemented."""
+	peaks, prop = signal.find_peaks(intensity, threshold=(2,2))
+	return peaks
+	
 
 def lorentzian_parsing(angle_data, absor_data, fit_func, bounds):
 	"""Takes raw angle-resolved spectra, absorbance spectrum, list with upper, lower bound.
@@ -496,6 +545,7 @@ def lorentzian_parsing(angle_data, absor_data, fit_func, bounds):
 	# Initial polariton position guesses
 	x01 = low_bound + 1/3 * (up_bound - low_bound)
 	x02 = low_bound + 2/3 * (up_bound - low_bound)
+	print('Initial peak position guesses:', x01, x02)
 	lorz1.set_x0(x01)
 	lorz2.set_x0(x02)
 
@@ -505,8 +555,10 @@ def lorentzian_parsing(angle_data, absor_data, fit_func, bounds):
 	lor_fits = []  	  				# List of Lorentzian fits for each data set
 	lower_pol = []	  				# List of Lorentzian classes for lower polariton
 	upper_pol = []	  				# List of Lorentzian classes for upper polariton
-	
-	if not absor_data[0]:
+	trunc_wavenum = []
+	residuals = []
+
+	if absor_data.size == 0:  # check if numpy array is empty
 		print("No absorbance data.\n")
 		abs_amp = 0.
 	else:
@@ -525,36 +577,22 @@ def lorentzian_parsing(angle_data, absor_data, fit_func, bounds):
 		wavenum, intensity = truncate_data(wavenum, intensity, low_bound, up_bound)
 
 		# Fit the data to find upper and lower polaritons.
-		fit, lor_lower, lor_upper = polariton_fitting(wavenum, intensity, fit_func, lorz1, lorz2)
+		fit, lor_lower, lor_upper, resid = polariton_fitting(wavenum, intensity, fit_func, lorz1, lorz2)
 		lorz1 = lor_lower
 		lorz2 = lor_upper
+		print("Peak fit for {} degrees:".format(d[0]), np.round(lorz1.x0, 2), np.round(lorz2.x0, 2))
 
-# 		wavenumbers.append(wavenum)
+		trunc_wavenum.append(wavenum)
 		intensities.append(intensity)
 		lor_fits.append(fit)
+		residuals.append(resid)
 
 		# For now, just using the x0 position of the peak
 		lower_pol.append(lor_lower.x0)
 		upper_pol.append(lor_upper.x0)
-		
-	return angles, lower_pol, upper_pol, abs_amp
 
-def splitting_least_squares(initial, angles, Elp, Eup):
-	"""Takes initial guesses:[E_cav_0, E_vib, Rabi, n].
-	   Takes angles (in degrees), and experimental upper and lower polariton data.
-	   Returns nonlinear least squares fit."""
+	return angles, lower_pol, upper_pol, abs_amp, trunc_wavenum, intensities, residuals
 
-	angles = convert_unit.deg_to_rad(angles)
-	#TODO: What units do we really want here? Unitless to convert later?
-	# Commented out for now so that unit conversions happen in plots.py
-# 	Elp = [wavenum_to_ev(i) for i in Elp]
-# 	Eup = [wavenum_to_ev(i) for i in Eup]
-
-	print("Performing default nonlinear least squares fit.")
-	optim = optimize.least_squares(error_f,
-								   x0=initial,
-								   args=(angles, Elp, Eup))
-	return optim
 
 def cavity_modes(bounds):
 	"""Use at your own peril."""
@@ -640,11 +678,12 @@ def parse_args():
 
 	parser.add_argument('spectral_data', help=spectrum_help)
 	parser.add_argument('-F', '--config_file', help=config_help)
-	parser.add_argument('-C', '--cavity_mode', help=cavity_help)
+	parser.add_argument('-M', '--cavity_mode', help=cavity_help)
 	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
 	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
 	parser.add_argument('-A', '--absorbance', action='store_true', help=abs_help)
 	parser.add_argument('-T', '--angle', action='store_true', help=angle_help)
+	parser.add_argument('-C', '--concentration', action='store_true')
 	parser.add_argument('fit_function', type=str, nargs='*', help=fit_function_help)
 
 	return parser.parse_args()
@@ -684,11 +723,16 @@ def plot_polariton(x_, y_, fit_func):
 def main():
 	args = parse_args()
 	spectral_data = args.spectral_data
-	config_params = args.config_file
-	fit_func = args.fit_function[0]
-	bounds = get_bounds_from_yaml(config_params)
-	bounds.sort()
-	output_path = get_output_path_from_yaml(config_params)
+
+	if args.config_file:
+	
+		config_params = args.config_file
+		bounds = get_bounds_from_yaml(config_params)
+		bounds.sort()
+		output_path = get_output_path_from_yaml(config_params)
+
+	if args.fit_function:
+		fit_func = args.fit_function[0]
 
 	if args.polariton:
 		print('Fitting double-peak Lorentzian')
@@ -705,13 +749,12 @@ def main():
 
 		print('Analyzing angle-resolved data')
 		initial_guesses, init_units = get_initial_from_yaml(config_params)
-		ang_data, abs_data = get_angle_data_from_dir(spectral_data)
+		angle_data, absorbance_data = get_angle_data_from_dir(spectral_data)
 		sample, params = get_sample_params(spectral_data)
-
-		write_angle_spec_to_file(ang_data, sample, output_path)
-		ang, Elp, Eup, E_vib = lorentzian_parsing(ang_data, abs_data, fit_func, bounds)
+		write_angle_spec_to_file(angle_data, sample, output_path)
+		angle, Elp, Eup, E_vib, new_wavenum, new_intens, resid = lorentzian_parsing(angle_data, absorbance_data, fit_func, bounds)
 		#TODO: Also return the error
-		splitting_fit = splitting_least_squares(initial_guesses, ang, Elp, Eup)
+		splitting_fit = splitting_least_squares(initial_guesses, angle, Elp, Eup)
 
 		E_0 = splitting_fit.x[0]
 		E_vib = splitting_fit.x[1]
@@ -726,12 +769,21 @@ def main():
 		print("Rabi =", Rabi)
 		print("n =", refractive_index)
 		
-		rad = [a * np.pi/180 for a in ang]  # convert degrees to radians
+		rad = [a * np.pi/180 for a in angle]  # convert degrees to radians
 		E_cav = cavity_mode_energy(rad, E_0, refractive_index)  # calculate cavity mode
 		
-		write_dispersion_to_file(ang, Eup, Elp, E_vib, E_cav, sample, output_path)
+		write_dispersion_to_file(angle, Eup, Elp, E_vib, E_cav, sample, output_path)
 		write_splitting_fit_to_file(splitting_fit.x, sample, init_units, output_path)
 		
+		for i, d in enumerate(angle_data):
+			
+			angle = d[0]
+			wavenum = new_wavenum[i]
+			intens = new_intens[2]
+			residual_data = resid[i]
+			write_peakfit_residuals_to_file(wavenum, residual_data, angle, output_path)
+			i+=1
+
 	else:
 		print('No input data found')
 		sys.exit()

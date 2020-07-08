@@ -1,31 +1,39 @@
-num_points: 10000
-min_wl: 0.2
-max_wl: 10
-wave:
-    theta_in: 0.0
-    A0: 1
-    B0: 0
+# A simple example of light passing through an empty Fabrey-Perot cavity consisting of
+# gold-film mirrors on glass substrate.
+# Wavelength-dependent refractive index data is either downloaded from 
+# https://refraciveindex.info or generated from absorbance data
+# (obtained online or in the lab). 
+
+num_points: 1000  # Number of wavelengths to sweep through between min and max wavelength
+min_wavelength: 0.2  # Starting wavelength
+max_wavelength: 10   # Ending wavelength
+wave:  # Properties of incident electric wave
+    theta_i: 0.0  # Initial light/device incident angle
+    theta_f: 9.0  # Final light/device incident angle
+    num_angles: 10  # Number of angles to sweep through between theta_i and theta_f
+    A0: 1  # Electric field amplitude, left-propagating wave
+    B0: 0  # Electric field amplitude, right-propagating wave
 layers:
     layer0:
-        material: SiO2
-        thickness: 0
-        param_path: "/pistachio/data/refractiveindex_info/SiO2_n_1.54-14.2um_Kischkat.csv"
+        material: SiO2  # String, does not affect calculations
+        thickness: 0  # Layer thickness in nanometers
+        param_path: "SiO2.csv"
     layer1: 
         material: Au
         thickness: 10
-        param_path: "/pistachio/data/refractiveindex_info/au_n_0.191-20.9um_Ciesielski.csv"
+        param_path: "Au.csv"
     layer2:
         material: Air
         thickness: 10000
-        wavelength: None
-        index: 1.0
-        extinction: 0.0
+        wavelength: None # If no param_path, include arbitrary wavelength 
+        refractive_index: 1.0  # If no param_path, specify refractive index
+        extinction_coeff: 0.0  # If no param_path, specify extinction coefficient
     layer3: 
         material: Au
         thickness: 10
-        param_path: "/pistachio/data/refractiveindex_info/au_n_0.191-20.9um_Ciesielski.csv"
+        param_path: "Au.csv"
     layer4: 
         material: SiO2
         thickness: 0
-        param_path: "/pistachio/data/refractiveindex_info/SiO2_n_1.54-14.2um_Kischkat.csv"
+        param_path: "SiO2.csv"
 
