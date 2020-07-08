@@ -90,7 +90,7 @@ def tmm_plots(sim_path, save_plot=None):
 	ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 	ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 	ax.set_xlim(1500, 500)
-	ax.set_ylim(0.0, 0.06)
+	ax.set_ylim(0.0, 5.1)
 	plot_title = "Transfer Matrix Method"
 	plt.suptitle(plot_title, fontsize=24)
 # 	plt.subplots_adjust(top=1.0)

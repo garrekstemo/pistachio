@@ -17,11 +17,11 @@ layers:
     layer0:
         material: SiO2  # String, does not affect calculations
         thickness: 0  # Layer thickness in nanometers
-        param_path: "SiO2.csv"
+        refractive_filename: "SiO2.csv"
     layer1: 
         material: Au
         thickness: 10
-        param_path: "Au.csv"
+        refractive_filename: "Au.csv"
     layer2:
         material: Air
         thickness: 10000
@@ -31,9 +31,9 @@ layers:
     layer3: 
         material: Au
         thickness: 10
-        param_path: "Au.csv"
+        refractive_filename: "Au.csv"
     layer4: 
         material: SiO2
         thickness: 0
-        param_path: "SiO2.csv"
+        refractive_filename: "SiO2.csv"
 
