@@ -21,7 +21,7 @@ layers:
     layer1: 
         material: Methanol
         thickness: 1000
-        param_path: "/Users/garrek/projects/pistachio/default/Methanol.csv"
+        param_path: "Methanol.csv"
     layer2: 
         material: Air
         thickness: 0
