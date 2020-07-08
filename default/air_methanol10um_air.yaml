@@ -21,7 +21,7 @@ layers:
     layer1: 
         material: Methanol
         thickness: 1000
-        param_path: "Methanol.csv"
+        refractive_filename: "Methanol.csv"
     layer2: 
         material: Air
         thickness: 0

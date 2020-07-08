@@ -3,8 +3,8 @@
 # or generated from absorbance data (obtained online or in the lab).
 
 num_points: 10000 # Number of wavelengths to sweep through between min and max wavelength
-min_wl: 0.21  # Starting wavelength
-max_wl: 2.4  # Ending wavelength
+min_wavelength: 0.21  # Starting wavelength
+max_wavelength: 2.4  # Ending wavelength
 wave:     # properties of incident electric wave 
     theta_i: 0.0 # Initial incident angle
     theta_f: 0.0  # Final incident angle
@@ -16,16 +16,16 @@ layers:
         material: Air  # String. Does not affect calculations
         thickness: 0  # Layer thickness in nanometers
         wavelength: None  # If no param_path, include arbitrary wavelength 
-        index: 1.0  # If no param_path, specify refractive index
-        extinction: 0.0  # If no param_path, specify extinction coefficient
+        refractive_index: 1.0  # If no param_path, specify refractive index
+        extinction_coeff: 0.0  # If no param_path, specify extinction coefficient
     layer1: 
         material: Au
         thickness: 100
-        param_path: "/pistachio/data/filmetrics/Au.txt" # Wavelength-dependent refractive index data
+        refractive_filename: "Au.csv" # Wavelength-dependent refractive index data
     layer2: 
         material: Air
         thickness: 0
         wavelength: None
-        index: 1.0
-        extinction: 0.0
+        refractive_index: 1.0
+        extinction_coeff: 0.0
 
