@@ -21,6 +21,7 @@ import time
 from itertools import tee
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import multiprocessing
 import numpy as np
 from ruamel_yaml import YAML
 import scipy as sp
@@ -166,7 +167,11 @@ def get_dict_from_yaml(yaml_file):
 	return device
 
 def get_layers_from_yaml(device_dict):
-	"""Takes device dictionary and outputs all layer objects as a list."""
+	"""
+	Takes device dictionary from yaml and outputs all layer objects as a list.
+	Input: dictionary with multi-layer device data already obtained rom yaml.load()
+	Output: List of Layer classes with parameters pulled from yaml config file.
+	"""
 	val1 = 'layers'
 	val2 = 'num_points'
 	val3 = 'min_wavelength'
@@ -195,8 +200,8 @@ def get_layers_from_yaml(device_dict):
 		thickness = float(layer['thickness']) * 10**-9
 		layer_class = Layer(material, num_points, min_wl, max_wl, thickness)
 
-		if "param_path" in layer:
-			params = layer['param_path']
+		if "refractive_filename" in layer:
+			params = layer['refractive_filename']
 			if 'txt' in params:
 				layer_class.get_data_from_txt(params)
 			elif 'csv' in params:
@@ -291,9 +296,9 @@ def dynamical_matrix(n_, theta=0.0, wave_type='mixed'):
 		print(pol_msg)
 		sys.exit()
 
-def reflectance(M_):
+def find_reflectance(M_):
     """Input: multilayer matrix, M.
-       Output: reflectance calculation."""
+       Output: Reflectance calculated from elements of transfer matrix."""
     M21 = M_.item((1, 0))
     M11 = M_.item((0, 0))
     r = M21 / M11
@@ -303,14 +308,17 @@ def reflectance(M_):
 
     return R
 
-def transmittance(TM):
-    """Inputs: Multilayer matrix of dynamical matrices and propagation matrix."""
-    M11 = TM.item((0, 0))
+def find_transmittance(M_):
+    """
+    Inputs: Multilayer matrix of dynamical matrices and propagation matrix.
+    Output: Transmittance calculated from elements of transfer matrix.
+    """
+    M11 = M_.item((0, 0))
     t = 1/M11
     t_sq = t * np.conj(t)
     t_sq = t_sq.real
 
-    T = np.linalg.det(TM) * t_sq
+    T = np.linalg.det(M_) * t_sq
 
     return T
 
@@ -389,7 +397,7 @@ def field_amp(matrix_list, A0_, B0_):
 	return field
 
 
-def output_TRA(angle, output_dir, rows):
+def write_tmm_results(angle, output_dir, rows):
 	"""Writes transmission, reflectance, abosorbance data to csv file"""
 
 	wavelens, trans, refl, absor = rows
@@ -413,7 +421,10 @@ def output_TRA(angle, output_dir, rows):
 	return 0
 
 def output_field_profile(wavelens, layers, E_amps):
-	"""Take list of wavelengths"""
+	"""
+	Take list of wavelengths
+	WARNING: Needs to be tested.
+	"""
 	k = 0.2  # test wavenumber, 2000 cm^-1
 	a = E_amps[100]
 	layer_coords = []
@@ -496,20 +507,47 @@ def transmission_matrix(r_ij, t_ij):
 # ========= ========= ========= ========= ========== ========= ======== #
 
 
-def main_loop(device_yaml, output_dir, wave_type):
+def perform_transfer_matrix(sim_path, angle, wavelengths, layers, wave_type):
+
+	transmittance = []
+	reflectance = []
+	absorbance = []
+
+	for lmbda in wavelengths:
+
+		M = build_matrix_list(lmbda, angle, layers, wave_type)
+		TM = np.linalg.multi_dot(M)
+		T = find_transmittance(TM).real
+		R = find_reflectance(TM).real
+
+		transmittance.append(T)
+		reflectance.append(R)
+		absorbance.append(1 - T - R)
+
+	#Write everything to a csv file
+	write_tmm_results(angle, sim_path, [wavelengths, transmittance, reflectance, absorbance])
+# 	results = [wavelengths, transmittance, reflectance, absorbance]
+# 	return angle, sim_path, results
+
+
+
+def angle_resolved_multiprocess(device_yaml, output_dir, wave_type):
 	"""
 	Inputs: yaml file containing information about device and incident radiation.
 	Outputs: Executes transfer matrix and other functions
 	   		 Writes output file.
+	   		 
+	This process uses the Python multiprocessing library. Each angle is assigned
+	its own process to speed up transfer matrix calculations for angle-tuned
+	simulations.
 	"""
-
 	# Inputs
 	device = get_dict_from_yaml(device_yaml)  # yaml config file stored as dictionary
-	layers = get_layers_from_yaml(device)  # a list of layer objects
-	em_wave = device['wave']
-	theta_i = em_wave['theta_i']  # Initial incident wave angle
-	theta_f = em_wave['theta_f']  # Final incident wave angle
-	num_angles = em_wave['num_angles']  # Number of angles to sweep through
+	layers = get_layers_from_yaml(device) 	  # a list of layer objects
+	field_amp = device['wave']      		  # Electric field amplitude
+	theta_i = field_amp['theta_i']  		  # Initial incident wave angle
+	theta_f = field_amp['theta_f'] 			  # Final incident wave angle
+	num_angles = field_amp['num_angles']  	  # Number of angles to sweep through
 	angles = np.linspace(theta_i, theta_f, num_angles)
 	
 	# Initialize Wave class	
@@ -520,6 +558,7 @@ def main_loop(device_yaml, output_dir, wave_type):
 	wave.make_wavelengths()  # still in units of um
 
 # 	logger.info('theta_i: {}, theta_f: {}, num angles: {}'.format(theta_i, theta_f, num_angles))
+
 	# interpolating from downloaded index data so number of data points match.
 	for layer in layers:
 		layer.make_new_data_points(wave.wavelengths)
@@ -531,37 +570,35 @@ def main_loop(device_yaml, output_dir, wave_type):
 	if not os.path.exists(sim_path):
 		os.makedirs(sim_path)
 
+	print("")
+	print("CPU Core Count:", multiprocessing.cpu_count())
+	pool = multiprocessing.Pool(multiprocessing.cpu_count())
 	for angle in angles:
+		# Testing multiprocessing Pool #
+		# Pool was the winner, but keep no multiprocessing and Process
+		# around for future reference.
+		pool.apply_async(perform_transfer_matrix, args=(sim_path, angle,
+										  	   			wave.wavelengths, 
+										  	   			layers, 
+										  	  			wave_type))	
+	pool.close()
+	pool.join()
+	print("Wrote results to {}".format(sim_path))
 
-		#TODO: Organize outputs better cuz there'll probably be a lot of them.
-		# Outputs
-		T = []
-		R = []
-		A = []
-		E_amps = []
-		intensity = []
-
-	# 	alpha = attenuation_coefficient(efield, k)
-		for lmbda in wave.wavelengths:
-
-			M = build_matrix_list(lmbda, angle, layers, wave_type)
-			TM = np.linalg.multi_dot(M)
-			trns = transmittance(TM).real
-			refl = reflectance(TM).real
-	# 		field = field_amp(M, device["wave"]['A0'], device['wave']['B0'])
-	# 		logging.info('Only using forward-propagating field values')
-	# 		field = [f[0] for f in field]
-
-	# 		E_amps.append(field)
-			T.append(trns)
-			R.append(refl)
-# 			abso = 1 - trns - refl
-			A.append(1 - trns - refl)
-
-		#Write everything to a csv file
-		output_TRA(angle, sim_path, [wave.wavelengths, T, R, A])
-	# 	output_field_profile(wavelens, layers, E_amps)
-
+		# No multiprocessing
+# 		perform_transfer_matrix(sim_path, angle, wave.wavelengths, layers, wave_type)
+		
+		# Testing multiprocessing Process
+# 		p = multiprocessing.Process(target=perform_transfer_matrix,
+# 										  args=(sim_path, angle,
+# 										  	   wave.wavelengths, 
+# 										  	   layers, 
+# 										  	   wave_type))
+# 		jobs.append(p)
+# 	for j in jobs:
+# 		j.start()
+# 	for j in jobs:
+# 		j.join()
 
 def get_console_handler():
 	console_handler = logging.StreamHandler(sys.stdout)
@@ -588,17 +625,16 @@ def get_logger(args, logger_name):
 
 def parse_arguments():
 	parser = argparse.ArgumentParser()
-	device_help = "Path for a yaml file from config_files describing a device"
-	output_help = "path and name for output data file (must be .csv)"
-	pwave_help = "boolean, calculate for p-wave"
-	swave_help = "boolean, calculate for s-wave"
+	device_help = "Path for a yaml file from config_files describing a device."
+	output_help = "Directory for transfer matrix results."
+	pwave_help = "Boolean. Incident wave is p-wave."
+	swave_help = "Boolean. Incident s-wave."
 
 	parser.add_argument('--debug', action='store_true', help="Enable debugging.")
 	parser.add_argument("device", help=device_help)
 	parser.add_argument("output", help=output_help)
 	parser.add_argument('-p', '--pwave', help=pwave_help, action='store_true')
 	parser.add_argument('-s', '--swave', help=swave_help, action='store_true')
-# 	parser.add_argument('-T', '--angles', action='store_true')
 
 	return parser.parse_args()
 
@@ -606,11 +642,6 @@ def parse_arguments():
 def main(args):
 
 	logger.debug("Debugging enabled")
-
-	# NOTICE: USER NO LONGER HAS TO SPECIFY A FILE NAME
-
-# 	output_message = "Output file must be .csv"
-# 	assert args.output[-4:] == ".csv", output_message
 	logger.info("Start simulation")
 	logger.info("Loading device parameters from {}".format(args.device))
 	
@@ -625,7 +656,7 @@ def main(args):
 		logger.info("Incident wave is mixed.")
 
 	start_time = time.time()
-	main_loop(args.device, args.output, wave_type)
+	angle_resolved_multiprocess(args.device, args.output, wave_type)
 	end_time = time.time()
 	elapsed_time = np.round(end_time - start_time, 4)
 	logger.info('elapsed time: {} seconds'.format(elapsed_time))
