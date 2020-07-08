@@ -9,6 +9,7 @@ n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary p
 Yeh, Pochi. 2005. Optical Wave in Layered Media.
 """
 import argparse
+
 import codecs
 import csv
 import importlib.resources as pkg_resources
@@ -27,7 +28,6 @@ import scipy.constants as sc
 import scipy.interpolate
 import data.refractive_index_data  # import directory containing refractive index info
 import results
-
 
 yaml = YAML()
 # FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s - %(message)s")
@@ -291,7 +291,6 @@ def dynamical_matrix(n_, theta=0.0, wave_type='mixed'):
 		print(pol_msg)
 		sys.exit()
 
-
 def reflectance(M_):
     """Input: multilayer matrix, M.
        Output: reflectance calculation."""
@@ -368,6 +367,7 @@ def field_amp(matrix_list, A0_, B0_):
 
 	i = len(matrix_list) - 1
 	slice_matrices = 3  # slice first three matrices from list after each dot product
+
 	M = matrix_product(matrix_list)
 	E_s = np.dot(M, E0)
 	field_rev.append(E_s)
@@ -379,6 +379,7 @@ def field_amp(matrix_list, A0_, B0_):
 		field_rev.append(E_i)
 		matrix_list = matrix_list[slice_matrices:]
 		i -= slice_matrices
+
 	if len(matrix_list) == 1:
 		E_i = np.dot(matrix_list[0], E0)
 		field_rev.append(E_i)
@@ -392,9 +393,9 @@ def output_TRA(angle, output_dir, rows):
 	"""Writes transmission, reflectance, abosorbance data to csv file"""
 
 	wavelens, trans, refl, absor = rows
-# 	output = os.path.abspath(args.output)
 	file_name = 'deg' + str(angle)
 	output_file = os.path.join(output_dir, file_name)
+
 	with open (output_file, 'w') as out_file:
 	#TODO: Also output wavenumbers
 		filewriter = csv.writer(out_file, delimiter=',')
@@ -451,7 +452,6 @@ def output_field_profile(wavelens, layers, E_amps):
 	ax.axvline(x=layer_coords[1])
 	ax.axvline(x=layer_coords[2])
 	ax.axvline(x=layer_coords[3])
-
 
 	field_output = ''
 	with pkg_resources.path('data', 'out/field_test.csv') as field:
@@ -512,8 +512,7 @@ def main_loop(device_yaml, output_dir, wave_type):
 	num_angles = em_wave['num_angles']  # Number of angles to sweep through
 	angles = np.linspace(theta_i, theta_f, num_angles)
 	
-	# Initialize Wave class
-	
+	# Initialize Wave class	
 	min_wavelength = float(device['min_wavelength'])
 	max_wavelength = float(device['max_wavelength'])
 	num_points = int(device['num_points'])
