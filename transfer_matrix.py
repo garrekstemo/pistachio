@@ -200,8 +200,8 @@ def get_layers_from_yaml(device_dict):
 		thickness = float(layer['thickness']) * 10**-9
 		layer_class = Layer(material, num_points, min_wl, max_wl, thickness)
 
-		if "param_path" in layer:
-			params = layer['param_path']
+		if "refractive_filename" in layer:
+			params = layer['refractive_filename']
 			if 'txt' in params:
 				layer_class.get_data_from_txt(params)
 			elif 'csv' in params:

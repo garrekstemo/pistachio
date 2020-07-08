@@ -3,7 +3,7 @@
 Author: Garrek Stemo\
 Affiliation: Nara Institute of Science and Technology\
 Date Created: July 5, 2019\
-Updated: February 11, 2020
+Updated: July 8, 2020
 
 Pistachio is a suite of software for analysis of coupled light-matter phenomenon.
 It includes a transfer matrix program based on Optical Waves in Layered Media by Pochi Yeh[^1] 
@@ -17,24 +17,32 @@ and fitting algorithms for generating dispersion curves, both from experimental 
 
 ## Transfer Matrix Method
 
+### Introduction
+
+The transfer matrix module computes transmission, reflection, and absorption for a multi-layer device using the transfer matrix method. Input waves can be s-wave or p-wave polarized. Mixed waves are not yet supported. The user creates a config file, which includes refractive index data for each layer in separate files. The program uses the multiprocess library for Python to parallelize transfer matrix calculations for angle-tuned calculations.
+
+This program has really only been tested thoroughly in Python 3.8.3 on macOS 10.15.5. Your mileage may vary.
+
 ### Data Directory
 
-The data directory contains some refractive index `csv` files to be used for simulations. They are taken from refractiveindex.info and filmetrics.com. The `data/out` directory is where simulation output data is stored, the user must input the file name and path as one of the command line arguments.
+The data directory contains some refractive index `csv` files to be used for simulations. They are taken from refractiveindex.info and filmetrics.com. To save transfer matrix results, the user must input the folder name as one of the command line arguments. The program will make a new folder based on parameters in a user-generated .yaml config file.
 
 ### Config files
 
-Config files are stored in the .yaml format as a device with a configuration for each layer. At the top, the number of points and minimum and maximum wavelengths is specified, which are used to generate a list of wavelengths between the minimum and maximum for the simulation. Incident wave properties are specified next, including the incident angle, right-traveling wave amplitude and left-traveling wave amplitude. In the future, `theta_in` will be allowed to take a list of angles for angle-resolved simulations.
+Config files are stored in the .yaml format with configurations for each material layer. At the top, the number of points, minimum, and maximum wavelengths are specified, which are used to generate a list of wavelengths between the minimum and maximum for the simulation. Incident wave properties are next, including the starting and ending incident angle (for angle-tuned measurements), right-traveling wave amplitude, and left-traveling wave amplitude. If `theta_i` (initial angle) and `theta_f` are different, then transfer matrix calculations are carried out for each angle in that range, with the number of angles determined by `num_angles`.
 
-Each layer requires a material name, thickness (in nanometers), and a path to a file containing the refractive index for each wavelength. If there is no file, then the user must input the index of refraction and extinction coefficient; in this case, the user should put `None` next to `wavelength:`.
+Each layer requires a material name, thickness (in nanometers), and a file containing the refractive index for each wavelength. This file must be placed in the `data/refractive_index_data` folder. If there is no file, then the user must input the index of refraction and extinction coefficient; in this case, the user should put `None` next to `wavelength` since these will be calculated based on max/min wavelengths and number of datapoints.
 
 #### Example transfer matrix config file
 
 ```
 num_points: 1000
-min_wl: 1.
-max_wl: 10.
+min_wavelength: 1.0
+max_wavelength: 10.0
 wave:
-	theta_in: 0.
+	theta_i: 0.0
+	theta_f: 30.0
+	num_angles: 31
 	A0: 1
 	B0: 0
 
@@ -42,50 +50,50 @@ layers:
 	layer0:
 	    material: SiO2
 	    thickness: 0
-	    param_path: "/../pistachio/data/layer0.csv"
+	    refractive_filename: "layer0.csv"
     layer1:
 	    material: Au
 	    thickness: 10
-	    param_path: "/../pistachio/data/layer1.csv"
+	    refractive_filename: "layer1.csv"
     layer2:
 	    material: Air
 	    thickness: 1000
 	    wavelength: None
-	    index: 1.2
-	    extinction: 0.0
+	    refractive_index: 1.0
+	    extinction_coeff: 0.0
 	layer3
 	    material: Au
 	    thickness: 10
-	    param_path: "/../pistachio/data/layer1.csv"
+	    refractive_filename: "layer1.csv"
 	layer4:
 		material: SiO2
 		thickness: 0
-		param_path: "/../pistachio/data/layer0.csv"
+		refractive_filename: "layer0.csv"
 ```
 
-Note that thickness must be given in nanometers. The param_path specifies
-the path where refractiveindex.info data is stored, which must be saved as
-a .csv file with wavelength, refractive index, and extinction coefficient
-columns.
+Note that thickness must be given in nanometers. The `refractive_filename` specifies the path where refractiveindex.info data is stored, which must be saved as a .csv file with wavelength, refractive index, and extinction coefficient columns.
+
 ### Running a transfer matrix simulation
 
 This program runs from the command line. For example, if you want to run simulation with a p-wave field, you would navigate to the pistachio directory and enter
 
-`python transfer_matrix.py -p config_files/file_name.yaml data/out/output_file.csv`
+`python transfer_matrix.py -p config_files/file_name.yaml results`
 
 When in doubt, run `python transfer_matrix.py -h` to see the types and order of inputs.
 
 ### Plotting results
 
-The output is a .csv file, so the user can use any plotting and analysis software. Basic plotting is provided via the included `plots.py`. It will take the output file and generate a simple transmittance, reflectance, and absorbance plot. This may be made more sophisticated in the future.
+The output is a directory of .csv files for each angle (or just one if `theta_i` and `theta_f` are the same), so the user can use separate plotting and analysis software. Basic plotting is provided via the included `plots.py`. It will take the output file and generate simple transmittance, reflectance, and absorbance plots. This may be made more sophisticated analysis in the future.
 
 ### Things that don't work yet
 
-The keen eye will notice that there is a field profile function in the transfer matrix file. This does not work yet; the field is discontinuous at medium boundaries when it should be continuous. I'll fix this later.
+The keen eye will notice that there is a field profile function in the transfer matrix file. This does not work yet. Further testing is needed.
+
+There is a Kramers-Kronig function that kind of sort of works, but the user has to manually guide it a bit.
 
 ## Lorentzian fitting and Dispersion Curves
 
-This program processes and analyzes spectral data, specifically light-matter coupling FTIR experiments.
+This program processes and analyzes spectral data, specifically light-matter coupling FTIR experiments. There will likely be significant changes to this in the future.
 
 There are a few different flags that can be used to specify the type of analysis you want to do. They are: 
 
@@ -94,7 +102,7 @@ There are a few different flags that can be used to specify the type of analysis
 3. bare vibration mode -> plot the spectrum and perform fitting
 4. single polariton spectrum -> plot and perform fitting
 
-Command line arguments include, yaml config file, input file or directory, and output directory, with the appropriate flags. An example input might look like the following:
+Command line arguments include, .yaml config file, input file or directory, and output directory, with the appropriate flags. An example input might look like the following:
 
 `python polariton_processing.py -F /yaml_config.yaml -T /Users/../data/out/1.0M_WCO6_in_Hexane /Users/../data/out/` 
 
@@ -103,7 +111,7 @@ Here we have used the `-F` flag to denote a yaml config file containing the wave
 
 ### How to name files and folders for experiments
 
-In order to process data efficiently, it is important to have a consistent naming scheme. The `polariton_processing.py` program relies on file and directory naming consistency to batch process angle-resolved data. A directory containing angle-resolved csv files shall have the naming convention
+In order to process data efficiently, it is important to have a consistent naming scheme. The `polariton_processing.py` program relies on file and directory naming consistency to batch process angle-resolved data. A directory containing angle-resolved .csv files shall have the naming convention
 
 `concentration_solvent_in_solute`
 
@@ -113,7 +121,7 @@ For example:
 
 The directory name is used to prevent the program from overwriting data when going through each angle.
 
-Angle-resolved csv files must contain the string `degNUM`where `NUM` is an integer. For example, `deg2` for incident angle 2 degrees. Inside this directory should also be an absorbance csv file containing the target coupling band. This file should start with the string `Abs`.
+Angle-resolved .csv files must contain the string `degNUM`where `NUM` is an integer. For example, `deg2` for incident angle 2 degrees. Inside this directory should also be an absorbance .csv file containing the target coupling band. This file should start with the string `Abs`.
 
 Unfortunately, naming is done manually for most experimental setups so the user must take care to name their raw data carefully. No attempt is made by the program to guess misspellings, etc.
 
@@ -121,7 +129,7 @@ The program currently does not handle vacant cavity data, but this might be adde
 
 ### Config file format
 
-There is also a yaml config file for analyzing polariton data. FTIR analysis is performed over a wide range of wavelengths, making any curve fitting impossible without truncating the raw data first. The user is spared from doing this themselves by simply including upper and lower bounds in the config file. The next item in the config file are initial guesses for the least squares fitting algorithm, which includes the 0-degree incident cavity mode energy, Rabi splitting parameter, refractive index, and vibrational mode energy. These energies can be put in units of eV or cm<sup>-1</sup> and are automatically converted for the fitting algorithm. The `units` parameter tells the program which units the initial guesses are in. These are then converted to cm<sup>-1</sup> because these are the standard units reported in FTIR machines, where these kinds of experiments are often performed. Yes, it's a little confusing that bounds are in inverse centimeters and the least squares guesses can be whatever you want, but this is a work in progress.
+There is also a .yaml config file for analyzing polariton data. FTIR analysis is performed over a wide range of wavelengths, making any curve fitting impossible without truncating the raw data first. The user is spared from doing this themselves by simply including upper and lower bounds in the config file. The next item in the config file are initial guesses for the least squares fitting algorithm, which includes the 0-degree incident cavity mode energy, Rabi splitting parameter, refractive index, and vibrational mode energy. These energies can be put in units of eV or cm<sup>-1</sup> and are automatically converted for the fitting algorithm. The `units` parameter tells the program which units the initial guesses are in. These are then converted to cm<sup>-1</sup> because these are the standard units reported in FTIR machines, where these kinds of experiments are often performed. Yes, it's a little confusing that bounds are in inverse centimeters and the least squares guesses can be whatever you want, but this is a work in progress.
 
 To simplify command-line arguments, the user can also specify an output directory here.
 
@@ -185,6 +193,7 @@ Then go to the command line. Navigate to the directory where you want to put Pis
 
 `git clone https://github.com/garrekds/pistachio .` 
 
+This is a Python package now, so you'll probably need to use something like `pip install --editable .` to install it. I don't exactly know how package installs work yet, but it works on my computer!
 
 ## References
 
