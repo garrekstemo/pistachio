@@ -42,8 +42,9 @@ def get_concentration_data(concentration_file):
 	
 	return conc, rabi
 
-
-# ================ Plotting functions ================ #
+# =================================================================== #
+# =================      Plotting functions 	 ==================== #
+# =================================================================== #
 
 def tmm_plots(sim_path, save_plot=None):
 	"""
