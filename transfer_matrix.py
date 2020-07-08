@@ -26,6 +26,7 @@ import scipy as sp
 import scipy.constants as sc
 import scipy.interpolate
 import data.refractive_index_data  # import directory containing refractive index info
+import results
 
 
 yaml = YAML()
@@ -180,6 +181,10 @@ def get_layers_from_yaml(device_dict):
 	# Minimum and maximum wavelengths from yaml config file
 	min_wl = float(device_dict[val3])
 	max_wl = float(device_dict[val4])
+
+	print("Number of points: {}".format(num_points))
+	print("Wavelengths: [{}, {}]".format(min_wl, max_wl))
+
 	layers = []
 
 	for i in range(num_layers):
@@ -520,11 +525,12 @@ def main_loop(device_yaml, output_dir, wave_type):
 	for layer in layers:
 		layer.make_new_data_points(wave.wavelengths)
 
-
-	#TODO: Don't hard-code this directory when testing is done.
-	sim_folder = os.path.join(output_dir, 'testing_sim_folder')
-	if not os.path.exists(sim_folder):
-		os.makedirs(sim_folder)
+	# Make folder for simulation results
+	device_name = device_yaml.split('/')[-1].split('.')[0]  # Get filename without path or '.yaml'
+	sim_foldername = device_name + '_' + str(min_wavelength) + '-' + str(max_wavelength) + 'um' + '_' + str(theta_i) + '-' + str(theta_f) + 'deg'
+	sim_path = os.path.join(output_dir, sim_foldername)
+	if not os.path.exists(sim_path):
+		os.makedirs(sim_path)
 
 	for angle in angles:
 
@@ -554,7 +560,7 @@ def main_loop(device_yaml, output_dir, wave_type):
 			A.append(1 - trns - refl)
 
 		#Write everything to a csv file
-		output_TRA(angle, sim_folder, [wave.wavelengths, T, R, A])
+		output_TRA(angle, sim_path, [wave.wavelengths, T, R, A])
 	# 	output_field_profile(wavelens, layers, E_amps)
 
 

@@ -6,7 +6,7 @@
 
 num_points: 10000  # Number of wavelengths to sweep through between min and max wavelength
 min_wavelength: 0.2  # Starting wavelength
-max_wavelength: 10   # Ending wavelength
+max_wavelength: 15   # Ending wavelength
 wave:  # Properties of incident electric wave
     theta_i: 0.0  # Initial light/device incident angle
     theta_f: 20.0  # Final light/device incident angle
