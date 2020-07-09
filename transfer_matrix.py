@@ -91,7 +91,7 @@ class Layer:
 		with pkg_resources.path(data.refractive_index_data, refractive_filename) as params:
 			# pkg_resources will return a path, which includes the csv file we want to read
 			params = os.path.abspath(params)
-			with open(params, 'r') as csv_file:
+			with open(params, 'r', encoding='utf-8') as csv_file:
 				csvreader = csv.reader(csv_file)
 				next(csvreader, None)
 				for row in csvreader:
