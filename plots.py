@@ -33,7 +33,7 @@ def get_concentration_data(concentration_file):
 	"""Get sorted data generated from concentration_analysis"""
 	conc = []
 	rabi = []
-	with open(concentration_file) as f:
+	with open(concentration_file, encoding='utf-8', newline='',) as f:
 		csvreader = csv.reader(f)
 		next(csvreader, None)
 		for row in csvreader:
@@ -68,7 +68,7 @@ def tmm_plots(sim_path, save_plot=None):
 		field = []
 		
 		sim_file = os.path.join(sim_path, sim)
-		with open(sim_file, 'r') as f:
+		with open(sim_file, 'r', encoding='utf8', newline='') as f:
 			reader = csv.reader(f)
 			next(reader, None)
 			for row in reader:

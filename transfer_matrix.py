@@ -404,8 +404,8 @@ def write_tmm_results(angle, output_dir, rows):
 	file_name = 'deg' + str(angle)
 	output_file = os.path.join(output_dir, file_name)
 
-	with open (output_file, 'w') as out_file:
-	#TODO: Also output wavenumbers
+	with open (output_file, 'w', encoding='utf8', newline='') as out_file:
+		#TODO: Also output wavenumbers
 		filewriter = csv.writer(out_file, delimiter=',')
 		header = ['Wavelength',
 				  'Transmittance',
@@ -418,7 +418,6 @@ def write_tmm_results(angle, output_dir, rows):
 			filewriter.writerow(row)
 			i+=1
 # 	logger.info("Wrote results to {}".format(output_file))
-	return 0
 
 def output_field_profile(wavelens, layers, E_amps):
 	"""
