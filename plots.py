@@ -33,7 +33,7 @@ def get_concentration_data(concentration_file):
 	"""Get sorted data generated from concentration_analysis"""
 	conc = []
 	rabi = []
-	with open(concentration_file) as f:
+	with open(concentration_file, encoding='utf-8', newline='',) as f:
 		csvreader = csv.reader(f)
 		next(csvreader, None)
 		for row in csvreader:
@@ -68,7 +68,7 @@ def tmm_plots(sim_path, save_plot=None):
 		field = []
 		
 		sim_file = os.path.join(sim_path, sim)
-		with open(sim_file, 'r') as f:
+		with open(sim_file, 'r', encoding='utf8', newline='') as f:
 			reader = csv.reader(f)
 			next(reader, None)
 			for row in reader:
@@ -89,8 +89,8 @@ def tmm_plots(sim_path, save_plot=None):
 	ax.tick_params(axis='both', which='both', direction='in', right=True, top=True, labelsize=14)
 	ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 	ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(5))
-	ax.set_xlim(1500, 500)
-	ax.set_ylim(0.0, 0.06)
+# 	ax.set_xlim(3500, 1000)
+# 	ax.set_ylim(0.0, 5)
 	plot_title = "Transfer Matrix Method"
 	plt.suptitle(plot_title, fontsize=24)
 # 	plt.subplots_adjust(top=1.0)
@@ -186,7 +186,7 @@ def plot_spectra(file_prefix, spectra_file, excitation=None, save_dir=None):
 	ax.tick_params(axis='both', which='both', direction='in', right=True, top=True)
 	ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 	ax.yaxis.set_minor_locator(ticker. AutoMinorLocator(5))
-	ax.set_xlim([3000, 1400])
+	ax.set_xlim([2500, 1500])
 	ax.set_ylim([0, 2])
 
 	# Annotate	
