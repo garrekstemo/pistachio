@@ -176,6 +176,7 @@ def get_layers_from_yaml(device_dict):
 	val2 = 'num_points'
 	val3 = 'min_wavelength'
 	val4 = 'max_wavelength'
+	val5 = 'wave'
 
 	num_layers = len(device_dict[val1])
 	num_points = int(device_dict[val2])
@@ -186,10 +187,14 @@ def get_layers_from_yaml(device_dict):
 	# Minimum and maximum wavelengths from yaml config file
 	min_wl = float(device_dict[val3])
 	max_wl = float(device_dict[val4])
+	theta_i = device_dict[val5]['theta_i']
+	theta_f = device_dict[val5]['theta_f']
+	num_angles = device_dict[val5]['num_angles']
 
-	print("Number of points: {}".format(num_points))
-	print("Wavelengths: [{}, {}]".format(min_wl, max_wl))
-
+	print("Wavelengths: {} in range [{}, {}]".format(num_points, min_wl, max_wl))
+	print("Sweep through {} angles in range [{}, {}]".format(num_angles, theta_i, theta_f))
+	print('_'*50)
+	print('Device Configuration')
 	layers = []
 
 	for i in range(num_layers):
@@ -215,7 +220,7 @@ def get_layers_from_yaml(device_dict):
 
 		layers.append(layer_class)
 		print(str(layer_class.material) + ", d=" + str(int(layer_class.thickness*10**9)) + "nm")
-
+	print('_'*50)
 	return layers
 
 
@@ -265,7 +270,6 @@ def attenuation_coefficient(beam_intensity, x):
 def kramers_kronig(alpha):
 	"""NOT IMPLEMENTED.
 	Takes attenuation coefficient. Returns real part of index of refraction."""
-
 
 def propagation_matrix(wavenumber, layer_thickness):
 	"""Inputs: wave number, thickness of medium
@@ -353,7 +357,6 @@ def build_matrix_list(wavelength, theta, layers, wave_type):
 
 	return matrices
 
-
 def matrix_product(matrices):
 	"""Product of matrices"""
 
@@ -395,7 +398,6 @@ def field_amp(matrix_list, A0_, B0_):
 	field = list(reversed(field_rev))
 
 	return field
-
 
 def write_tmm_results(angle, output_dir, rows):
 	"""Writes transmission, reflectance, abosorbance data to csv file"""
@@ -529,7 +531,6 @@ def perform_transfer_matrix(sim_path, angle, wavelengths, layers, wave_type):
 # 	return angle, sim_path, results
 
 
-
 def angle_resolved_multiprocess(device_yaml, output_dir, wave_type):
 	"""
 	Inputs: yaml file containing information about device and incident radiation.
@@ -598,6 +599,7 @@ def angle_resolved_multiprocess(device_yaml, output_dir, wave_type):
 # 		j.start()
 # 	for j in jobs:
 # 		j.join()
+
 
 def get_console_handler():
 	console_handler = logging.StreamHandler(sys.stdout)

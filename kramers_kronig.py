@@ -38,7 +38,7 @@ def transform_absorbance(data_file, concentration, cavity_len, lbound_=2000, ubo
 	omega_full, absorbance_full = pp.get_data(data_file)
 	omega, absorbance = pp.truncate_data(omega_full, absorbance_full, lbound_, ubound_)
 	extinction = absorbance / (concentration * cavity_len) # absorbance / (concentration * cavity length)
-	transform = 1.5 + fft.hilbert(extinction)
+	transform = 1.33 - fft.hilbert(extinction)
 	
 	return omega, transform, extinction
 	
@@ -51,9 +51,9 @@ def main():
 # 	n_points = 1000
 	# First we need to get raw absorbance data.
 	data_file = '/Users/garrek/projects/raw_data/absorbance/DPPA_in_DMF_2.0M_Abs_2.0M_DPPA_16scans_2.0cm.csv'
-	output_path = '/Users/garrek/projects/pistachio/data/refractiveindex_info/'
+	output_path = '/Users/garrek/projects/pistachio/data/refractive_index_data/'
 	hilbert_results = transform_absorbance(data_file, 2.0, 25., lbound, ubound)
-# 	write_refractive(*hilbert_results, output_path)
+	write_refractive(*hilbert_results, output_path)
 
 
 # 	fig, ax = plt.subplots(3, sharex=True)
