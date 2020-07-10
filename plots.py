@@ -42,81 +42,62 @@ def get_concentration_data(concentration_file):
 	
 	return conc, rabi
 
+# =================================================================== #
+# =================      Plotting functions 	 ==================== #
+# =================================================================== #
 
-# ================ Plotting functions ================ #
+def tmm_plots(sim_path, save_plot=None):
+	"""
+	Plot transmission from transfer matrix simulation.
+	"""
+	#TODO: User specifies transmittance, reflectance, absorbance.
+	#TODO: User specifies center wavenumber
 
-def TRA_plots(inputfile, save_file=None):
-	wavelength = []
-	wavenumber = []
-	transmittance = []
-	reflectance = []
-	absorptance = []
-	field = []
-
-	with open(inputfile, 'r') as f:
-		reader = csv.reader(f)
-		next(reader, None)
-		for row in reader:
-			wavelength.append(float(row[0]))
-			transmittance.append(float(row[1]))
-			reflectance.append(float(row[2]))
-			absorptance.append(float(row[3]))
-
-	wavenumber = [10**4/wl for wl in wavelength]
-
-	print("Generating plots...")
-# 	fig, axs = plt.subplots(3, 1, sharex=True)
 	fig, ax = plt.subplots(figsize=(20, 10))
 	gs1 = gridspec.GridSpec(3, 1)
 	gs1.update(wspace=0.025, hspace=0.005)
+		
+	sim_file_list = os.listdir(sim_path)
+	for sim in sim_file_list:
+	
+		wavelength = []
+		wavenumber = []
+		transmittance = []
+		reflectance = []
+		absorptance = []
+		field = []
+		
+		sim_file = os.path.join(sim_path, sim)
+		with open(sim_file, 'r') as f:
+			reader = csv.reader(f)
+			next(reader, None)
+			for row in reader:
+				wavelength.append(float(row[0]))
+				transmittance.append(float(row[1]))
+				reflectance.append(float(row[2]))
+				absorptance.append(float(row[3]))
 
-# 	ax = axs[0]
-	ax.plot(wavenumber, transmittance,
-			color='k',
-			linewidth=2.,
-			label="transfer matrix")
+		wavenumber = [10**4/wl for wl in wavelength]
+		ax.plot(wavenumber, transmittance,
+				color='k',
+				linewidth=1,
+				label="transfer matrix")
 # 	if args.transmission:
 # 		ax.plot(wl_T_data, T_data, linestyle="dashed", color='#FF5733', label="downloaded data")
-	ax.set_ylabel('Transmittance %', fontsize=24)
-	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=24)
-	ax.tick_params(axis='both', which='both', direction='in', right=True, top=True, labelsize=18)
+	ax.set_ylabel('Transmittance %', fontsize=16)
+	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=16)
+	ax.tick_params(axis='both', which='both', direction='in', right=True, top=True, labelsize=14)
 	ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 	ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(5))
-	ax.set_xlim(4000, 500)
-# 	ax.set_ylim(0.0, 0.06)
-# 	ax.axvline(2173, color='r', linestyle='dashed')
-# 	ax.xaxis.set_ticks(np.arange(2500, 1000, 5))
-
-
-# 	ax = axs[1]
-# 	ax.plot(wavelength, reflectance,
-# 			color='b',
-# 			linewidth=0.8,
-# 			label="transfer matrix")
-# 	if args.reflection:
-# 		ax.plot(wl_R_data, R_data, linestyle="dashed", color='#FF5733', label="downloaded data")
-# 	ax.set_ylabel('Reflectance %', fontsize=12)
-# 
-# 
-# 	ax = axs[2]
-# 	ax.plot(wavelength, absorptance,
-# 			color='b',
-# 			linewidth=0.8,
-# 			label="transfer matrix")
-# 	if args.absorbance:
-# 		ax.plot(wl_A_data, A_data, linestyle="dashed", color="#FF5733", label="downloaded data")
-# 	ax.set_ylabel('Absorptance %', fontsize=12)
-# 	ax.set_xlabel('Wavelength ($\mu$m)', fontsize=12)
-	
-
+	ax.set_xlim(1500, 500)
+	ax.set_ylim(0.0, 5.1)
 	plot_title = "Transfer Matrix Method"
 	plt.suptitle(plot_title, fontsize=24)
-	plt.subplots_adjust(top=1.0)
-# 	plt.tight_layout()
+# 	plt.subplots_adjust(top=1.0)
 
-	if save_file:
-		print("Saving figure as pdf to {}".format(save_file))
-		fig.savefig(save_file, bbox_inches='tight')
+	if save_plot:
+		print("Saving figure as pdf to {}".format(save_plot))
+		fig.savefig(save_plot, bbox_inches='tight')
 
 	else:
 		plt.show()
@@ -454,7 +435,7 @@ def parse_args():
 	parser.add_argument('-ABS', '--absorbance', help=absorptance_help)
 	parser.add_argument('-D', '--dispersion', help=dispersion_help)
 	parser.add_argument('-T', '--angle', help=angle_help)
-	parser.add_argument('-S', '--savedir', help=save_help)
+	parser.add_argument('--save_plot', help=save_help)
 	parser.add_argument('-SP', '--splitting_results', help=splitting_help)
 	parser.add_argument('-C', '--concentration', help=concentration_help)
 	parser.add_argument('-R', '--residuals', help=residuals_help)
@@ -480,7 +461,7 @@ def main():
 
 
 	if args.simulation:
-		TRA_plots(args.simulation, args.savedir)
+		tmm_plots(args.simulation, args.save_plot)
 # 	field_profile_data = sys.argv[2]
 
 	if args.dispersion:
@@ -489,9 +470,9 @@ def main():
 		sample_name, params = pp.get_sample_params(dispersion_data)
 		file_prefix = params[0] + '_' + params[1]
 		if args.splitting_results:
-			plot_dispersion(file_prefix, dispersion_data, display_units, args.splitting_results, args.savedir)
+			plot_dispersion(file_prefix, dispersion_data, display_units, args.splitting_results, args.save_plot)
 		else:
-			plot_dispersion(file_prefix, dispersion_data, display_units, args.savedir)
+			plot_dispersion(file_prefix, dispersion_data, display_units, args.save_plot)
 
 	if args.angle:
 		angle_data = args.angle
@@ -500,7 +481,7 @@ def main():
 		file_prefix = params[0] + '_' + params[1]
 		
 # 		plot_spectra(file_prefix, angle_data, excitation=2171)
-		plot_spectra(file_prefix, angle_data, save_dir=args.savedir)
+		plot_spectra(file_prefix, angle_data, save_dir=args.save_plot)
 	
 	if args.concentration:
 		plot_splitting_concentration(args.concentration)
