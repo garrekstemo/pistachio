@@ -5,6 +5,7 @@ import argparse
 import csv
 import os
 import sys
+import natsort as ns
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -42,16 +43,38 @@ def get_concentration_data(concentration_file):
 	
 	return conc, rabi
 
+
+def more_points(data_array, num_points):
+	
+	multiple = int(num_points / len(data_array))
+	mod = num_points % len(data_array)
+	type(mod)
+	
+	new_array = []
+	
+	for a in data_array:
+		new_array += multiple * [a]
+	new_array += [data_array[-1]] * mod
+	return new_array
+
+def save_plot_pdf(figure, fig_filepath):
+	"""Saves a figure as a PDF"""
+	figure.savefig(fig_filepath, bbox_inches='tight')
+	print("Saved plot to {}".format(fig_filepath))
+
+
 # =================================================================== #
 # =================      Plotting functions 	 ==================== #
 # =================================================================== #
 
-def tmm_plots(sim_path, save_plot=None):
+def tmm_plots(sim_path, plot_angle=0.0, save_plot=None):
 	"""
-	Plot transmission from transfer matrix simulation.
+	Plot transmission vs wavenumber from transfer matrix simulation for each angle.
+	Later add the feature to plot only the angles in the argument plot_angle
 	"""
 	#TODO: User specifies transmittance, reflectance, absorbance.
 	#TODO: User specifies center wavenumber
+	#TODO: Plot just the angles specified in plot_angle.
 
 	fig, ax = plt.subplots(figsize=(20, 10))
 	gs1 = gridspec.GridSpec(3, 1)
@@ -96,11 +119,61 @@ def tmm_plots(sim_path, save_plot=None):
 # 	plt.subplots_adjust(top=1.0)
 
 	if save_plot:
-		print("Saving figure as pdf to {}".format(save_plot))
-		fig.savefig(save_plot, bbox_inches='tight')
+		save_plot_pdf(fig, save_plot)
 
 	else:
 		plt.show()
+
+
+def tmm_contour_plot(sim_path, save_plot=None):
+	"""
+	Produces a color plot using angle-resolved data to plot
+	wavenumber vs angle with transmission as the z-axis.
+
+	If save_plot is a filename and path, then the plot is saved in the format
+	specified in the command line argument.
+	"""
+	angle_files = ns.realsorted(os.listdir(sim_path))
+	angle_data = []
+	wavenumber_data = []
+	transmission_data = []
+	
+	for i, angle in enumerate(angle_files):
+		
+		angle_file = os.path.join(sim_path, angle)
+		degree = float(angle[len('deg') : angle.find('.csv')])
+		angle_data.append(degree)
+		
+		transmission = []
+		wavenumber = []
+		
+		with open(angle_file, 'r', encoding='utf-8', newline='') as csvfile:
+			csvreader = csv.reader(csvfile, delimiter=',')
+			header = next(csvreader)
+			for row in csvreader:
+				wavenumber.append(10**4 / float(row[0]))  # Convert from um to cm-1
+				transmission.append(float(row[1]))
+			wavenumber_data = wavenumber
+			transmission_data.append(transmission)
+			
+	angle_data = more_points(angle_data, len(wavenumber_data))
+	transmission_data = more_points(transmission_data, len(wavenumber_data))
+	Y, X = np.meshgrid(wavenumber_data, angle_data)
+	fig, ax = plt.subplots()
+	cbmin = 0.0
+	cbmax = 0.006
+	levels = np.linspace(0.0, 0.006, 70)
+	m = ax.contourf(X, Y, transmission_data, levels=levels)  # More levels = finer detail
+	ax.set_ylim(1500, 3000)
+
+	ax.set_ylabel(r'Wavenumber (cm$^{-1}$)')
+	ax.set_xlabel('Angle (degrees)')
+# 	cbar = fig.colorbar(m, ticks=np.linspace(cbmin, cbmax, label='Transmission (%)')
+	
+	plt.show()
+	
+	if save_plot:
+		save_plot_pdf(fig, save_plot)
 
 
 def reference_data(data_file):
@@ -216,8 +289,6 @@ def plot_spectra(file_prefix, spectra_file, excitation=None, save_dir=None):
 		print("Saved cascade plot to {}".format(output_file))
 	else:
 		plt.show()
-	
-	return 0
 	
 
 def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, save_dir=None):
@@ -341,7 +412,6 @@ def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, sa
 	else:
 		plt.show()
 	
-	return 0
 
 def plot_splitting_concentration(concentration_file, new_units=None):
 	"""Plots solute concentration vs vacuum Rabi splitting"""
@@ -407,13 +477,14 @@ def parse_args():
 	#TODO: Make flag to toggle powerpoint and paper font settings
 	parser = argparse.ArgumentParser()
 	
-	simulation_help = "Input file from transfer_matrix.py with transmittance, \
+	transmission_help = "Input file from transfer_matrix.py with transmittance, \
 					   reflectance, absorptance data \
 					   (not necessarily all three)."
+	color_plot_help = "Produces a color plot from angle-dependent transmission simulation data."
 	reference_help = "Input file from reference data (filmetrics, refractiveindex, etc.)"
-	reflectance_help = "For testing: path for reflectance data downloaded from filmetrics."
-	transmittance_help = "For testing: path for transmittance data downloaded from filmetrics"
-	absorptance_help = "For testing: path for absorptance data downloaded from filmetrics"
+	refl_ref_help = "For testing: path for reflectance data downloaded from filmetrics."
+	trans_ref_help = "For testing: path for transmittance data downloaded from filmetrics"
+	abs_ref_help = "For testing: path for absorptance data downloaded from filmetrics"
 	dispersion_help = "Plot dispersion curves from experimental angle-tuned data. \
 					   Input path to dispersion data from polariton fitting."
 	angle_help = "Plot cascading angle-tuned data on a single axis. \
@@ -428,11 +499,8 @@ def parse_args():
 	units_help = "Sets the units for plotting. Valid units are: \
 				  ev (eV), wn (wavenumber cm-1), wl (wavelength um)"
 
-
-	parser.add_argument('-SIM', '--simulation', help=simulation_help)
-	parser.add_argument('-TRN', '--transmission',help=transmittance_help)
-	parser.add_argument('-RFL', '--reflection',help=reflectance_help)
-	parser.add_argument('-ABS', '--absorbance', help=absorptance_help)
+	parser.add_argument('--transmission', help=transmission_help)
+	parser.add_argument('--color_plot', help=color_plot_help)
 	parser.add_argument('-D', '--dispersion', help=dispersion_help)
 	parser.add_argument('-T', '--angle', help=angle_help)
 	parser.add_argument('--save_plot', help=save_help)
@@ -440,6 +508,9 @@ def parse_args():
 	parser.add_argument('-C', '--concentration', help=concentration_help)
 	parser.add_argument('-R', '--residuals', help=residuals_help)
 	parser.add_argument('units', type=str, nargs='*', help=units_help)
+	parser.add_argument('--transmission_ref',help=trans_ref_help)
+	parser.add_argument('--reflection_ref',help=refl_ref_help)
+	parser.add_argument('--absorbance_ref', help=abs_ref_help)
 	
 	return parser.parse_args()
 
@@ -450,19 +521,10 @@ def main():
 		display_units = args.units[0].lower()
 
 	if args.transmission:
-		print("Using transmission reference data.")
-		wl_T_data, T_data = reference_data(args.transmission)
-	if args.reflection:
-		print("Using reflection reference data.")
-		wl_R_data, R_data = reference_data(args.reflection)
-	if args.absorbance:
-		print("Using absorbance reference data.")
-		wl_A_data, A_data = reference_data(args.absorbance)
+		tmm_plots(args.transmission, args.save_plot)
 
-
-	if args.simulation:
-		tmm_plots(args.simulation, args.save_plot)
-# 	field_profile_data = sys.argv[2]
+	if args.color_plot:
+		tmm_contour_plot(args.color_plot, args.save_plot)
 
 	if args.dispersion:
 		#TODO: Use parameter strings to title plots
@@ -489,9 +551,21 @@ def main():
 	if args.residuals:
 		plot_curve_fit_residuals(args.residuals)
 	
-	# ===== Plotting FTIR data ===== #
-# 	x_file = "/Users/garrek/Desktop/fpi0xwave.txt"
-# 	y_file = "/Users/garrek/Desktop/trans0.txt"
+	# Plot reference data (Not tested in a long time)
+	if args.transmission_ref:
+		print("Using transmission reference data.")
+		wl_T_data, T_data = reference_data(args.transmission)
+	if args.reflection_ref:
+		print("Using reflection reference data.")
+		wl_R_data, R_data = reference_data(args.reflection)
+	if args.absorbance_ref:
+		print("Using absorbance reference data.")
+		wl_A_data, A_data = reference_data(args.absorbance)
+
+		
+	# ===== Plot FTIR data ===== #
+# 	x_file = ""
+# 	y_file = ""
 # 	x_data = []
 # 	y_data = []
 # 	

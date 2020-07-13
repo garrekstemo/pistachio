@@ -276,7 +276,7 @@ def propagation_matrix(wavenumber, layer_thickness):
 	   Output: propagation matrix (phase accumulation for plane wave
 				propagating through homogeneous medium)."""
 	phi = wavenumber*layer_thickness
-	P_i = np.array([[np.exp(-1j*phi), 0.0], [0.0, np.exp(1j*phi)]])
+	P_i = np.array([[np.exp(-1j*phi), 0.0], [0.0, np.exp(1j*phi)]]) * 1.0
 
 	return P_i
 
@@ -401,7 +401,7 @@ def field_amp(matrix_list, A0_, B0_):
 
 def write_tmm_results(angle, output_dir, rows):
 	"""Writes transmission, reflectance, abosorbance data to csv file"""
-
+	# print(angle)
 	wavelens, trans, refl, absor = rows
 	file_name = 'deg' + str(angle) + '.csv'
 	output_file = os.path.join(output_dir, file_name)
@@ -515,8 +515,8 @@ def perform_transfer_matrix(sim_path, angle, wavelengths, layers, wave_type):
 	absorbance = []
 
 	for lmbda in wavelengths:
-
-		M = build_matrix_list(lmbda, angle, layers, wave_type)
+		theta = angle * np.pi / 180.0
+		M = build_matrix_list(lmbda, theta, layers, wave_type)
 		TM = np.linalg.multi_dot(M)
 		T = find_transmittance(TM).real
 		R = find_reflectance(TM).real
@@ -574,6 +574,7 @@ def angle_resolved_multiprocess(device_yaml, output_dir, wave_type):
 	print("CPU Core Count:", multiprocessing.cpu_count())
 	pool = multiprocessing.Pool(multiprocessing.cpu_count())
 	for angle in angles:
+
 		# Testing multiprocessing Pool #
 		# Pool was the winner, but keep no multiprocessing and Process
 		# around for future reference.
