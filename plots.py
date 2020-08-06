@@ -161,14 +161,15 @@ def tmm_contour_plot(sim_path, save_plot=None):
 	Y, X = np.meshgrid(wavenumber_data, angle_data)
 	fig, ax = plt.subplots()
 	cbmin = 0.0
-	cbmax = 0.006
-	levels = np.linspace(0.0, 0.006, 70)
+	cbmax = 0.2
+	cbticks = np.linspace(cbmin, cbmax, 5)
+	levels = np.linspace(cbmin, cbmax, 70)
 	m = ax.contourf(X, Y, transmission_data, levels=levels)  # More levels = finer detail
 	ax.set_ylim(1500, 3000)
 
 	ax.set_ylabel(r'Wavenumber (cm$^{-1}$)')
 	ax.set_xlabel('Angle (degrees)')
-# 	cbar = fig.colorbar(m, ticks=np.linspace(cbmin, cbmax, label='Transmission (%)')
+	cbar = fig.colorbar(m, ticks=cbticks, label='Transmission (%)')
 	
 	plt.show()
 	

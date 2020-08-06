@@ -9,7 +9,6 @@ n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary p
 Yeh, Pochi. 2005. Optical Wave in Layered Media.
 """
 import argparse
-
 import codecs
 import csv
 import importlib.resources as pkg_resources
@@ -27,6 +26,7 @@ from ruamel_yaml import YAML
 import scipy as sp
 import scipy.constants as sc
 import scipy.interpolate
+from tqdm import tqdm
 import data.refractive_index_data  # import directory containing refractive index info
 import results
 
@@ -66,13 +66,13 @@ class Layer:
 	a multi-layer device.
 	"""
 	def __init__(self, material, num_points, min_wl=0.0, max_wl=0.0, thickness=0.0):
-		self.material = material
-		self.thickness = thickness
-		self.num_points = num_points
-		self.wavelengths = []  # wavelengths from refractive index data. Used only for testing.
-		self.refractive_index = []  # array of refractive indices
-		self.extinction_coeff = []  # array of extinction coefficients
-		self.complex_refractive = {}  # Needs to be curly braces
+		self.material = material			# Material name string
+		self.thickness = thickness			# Layer thickness (be consistent, but test files are in nm)
+		self.num_points = num_points		# Number of wavelengths to scan through
+		self.wavelengths = []  				# wavelengths from refractive index data. Used only for testing.
+		self.refractive_index = [] 			# Array of refractive indices (real part)
+		self.extinction_coeff = []  		# Array of extinction coefficients (imaginary part)
+		self.complex_refractive = {}  		# Needs to be curly braces
 
 	def __repr__(self):
 		a = "{} \n".format(self.material)
@@ -172,24 +172,21 @@ def get_layers_from_yaml(device_dict):
 	Input: dictionary with multi-layer device data already obtained rom yaml.load()
 	Output: List of Layer classes with parameters pulled from yaml config file.
 	"""
-	val1 = 'layers'
-	val2 = 'num_points'
-	val3 = 'min_wavelength'
-	val4 = 'max_wavelength'
-	val5 = 'wave'
+	key1 = 'layers'
+	key2 = 'num_points'
+	key3 = 'min_wavelength'
+	key4 = 'max_wavelength'
+	key5 = 'wave'
 
-	num_layers = len(device_dict[val1])
-	num_points = int(device_dict[val2])
-
-# 	logger.info("Num points: {}".format(num_points))
-# 	logger.info("Number of layers: {}".format(num_layers))
+	num_layers = len(device_dict[key1])
+	num_points = int(device_dict[key2])
 
 	# Minimum and maximum wavelengths from yaml config file
-	min_wl = float(device_dict[val3])
-	max_wl = float(device_dict[val4])
-	theta_i = device_dict[val5]['theta_i']
-	theta_f = device_dict[val5]['theta_f']
-	num_angles = device_dict[val5]['num_angles']
+	min_wl = float(device_dict[key3])
+	max_wl = float(device_dict[key4])
+	theta_i = device_dict[key5]['theta_i']
+	theta_f = device_dict[key5]['theta_f']
+	num_angles = device_dict[key5]['num_angles']
 
 	print("Wavelengths: {} in range [{}, {}]".format(num_points, min_wl, max_wl))
 	print("Sweep through {} angles in range [{}, {}]".format(num_angles, theta_i, theta_f))
@@ -259,17 +256,6 @@ def get_beam_profile(beam_csv):
 
 	return wavenum, field
 
-def attenuation_coefficient(beam_intensity, x):
-	"""NOT PROPERLY IMPLEMENTED.
-	Takes beam intensity as array"""
-
-	dI = np.gradient(beam_intensity, x)
-
-	return dI / beam_intensity
-
-def kramers_kronig(alpha):
-	"""NOT IMPLEMENTED.
-	Takes attenuation coefficient. Returns real part of index of refraction."""
 
 def propagation_matrix(wavenumber, layer_thickness):
 	"""Inputs: wave number, thickness of medium
@@ -401,7 +387,7 @@ def field_amp(matrix_list, A0_, B0_):
 
 def write_tmm_results(angle, output_dir, rows):
 	"""Writes transmission, reflectance, abosorbance data to csv file"""
-	# print(angle)
+
 	wavelens, trans, refl, absor = rows
 	file_name = 'deg' + str(angle) + '.csv'
 	output_file = os.path.join(output_dir, file_name)
@@ -557,60 +543,41 @@ def angle_resolved_multiprocess(device_yaml, output_dir, wave_type):
 	wave = Wave(min_wavelength, max_wavelength, num_points)
 	wave.make_wavelengths()  # still in units of um
 
-# 	logger.info('theta_i: {}, theta_f: {}, num angles: {}'.format(theta_i, theta_f, num_angles))
-
-	# interpolating from downloaded index data so number of data points match.
+	# Interpolating downloaded index data so number of data points match.
 	for layer in layers:
 		layer.make_new_data_points(wave.wavelengths)
 
 	# Make folder for simulation results
-	device_name = device_yaml.split('/')[-1].split('.')[0]  # Get filename without path or '.yaml'
+	device_name = device_yaml.split('/')[-1]  # Get filename without path or '.yaml'
+	device_name = device_name[ : device_name.find('.yaml')]
 	sim_foldername = device_name + '_' + str(min_wavelength) + '-' + str(max_wavelength) + 'um' + '_' + str(theta_i) + '-' + str(theta_f) + 'deg'
 	sim_path = os.path.join(output_dir, sim_foldername)
 	if not os.path.exists(sim_path):
 		os.makedirs(sim_path)
 
 	print("")
-	print("CPU Core Count:", multiprocessing.cpu_count())
-	pool = multiprocessing.Pool(multiprocessing.cpu_count())
-	for angle in angles:
-
-		# Testing multiprocessing Pool #
-		# Pool was the winner, but keep no multiprocessing and Process
-		# around for future reference.
-		pool.apply_async(perform_transfer_matrix, args=(sim_path, angle,
-										  	   			wave.wavelengths, 
-										  	   			layers, 
-										  	  			wave_type))	
+	num_cores = multiprocessing.cpu_count()
+	print("CPU Core Count:", num_cores)
+	pool = multiprocessing.Pool(num_cores)
+	
+	n = len(angles)
+	pbar = tqdm(total=n)
+	
+	res = [pool.apply_async(perform_transfer_matrix, 
+							args=(sim_path, angle, wave.wavelengths, layers, wave_type),
+							callback = lambda _: pbar.update(1)) for angle in angles]
+	results = [p.get() for p in res]
 	pool.close()
 	pool.join()
+	pbar.close()
+	print("")
 	print("Wrote results to {}".format(sim_path))
-
-		# No multiprocessing
-# 		perform_transfer_matrix(sim_path, angle, wave.wavelengths, layers, wave_type)
-		
-		# Testing multiprocessing Process
-# 		p = multiprocessing.Process(target=perform_transfer_matrix,
-# 										  args=(sim_path, angle,
-# 										  	   wave.wavelengths, 
-# 										  	   layers, 
-# 										  	   wave_type))
-# 		jobs.append(p)
-# 	for j in jobs:
-# 		j.start()
-# 	for j in jobs:
-# 		j.join()
 
 
 def get_console_handler():
 	console_handler = logging.StreamHandler(sys.stdout)
 	console_handler.setFormatter(FORMATTER)
 	return console_handler
-
-# def get_file_handler():
-# 	file_handler = TimedRotatingFileHandler(LOG_FILE, when='midnight')
-# 	file_handler.setFormatter(FORMATTER)
-# 	return file_handler
 
 def get_logger(args, logger_name):
 	"""Configure logging."""
@@ -621,7 +588,6 @@ def get_logger(args, logger_name):
 	else:
 		logger.setLevel(logging.INFO)
 	logger.addHandler(get_console_handler())
-# 	logger.addHandler(get_file_handler())
 	logger.propagate = False
 	return logger
 
@@ -661,7 +627,7 @@ def main(args):
 	angle_resolved_multiprocess(args.device, args.output, wave_type)
 	end_time = time.time()
 	elapsed_time = np.round(end_time - start_time, 4)
-	logger.info('elapsed time: {} seconds'.format(elapsed_time))
+	logger.info('Elapsed time: {} seconds'.format(elapsed_time))
 
 
 if __name__ == '__main__':
