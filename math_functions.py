@@ -15,30 +15,26 @@ def lorentz_model(omega, noise_=0., gamma=40., omega_0=2172):
 	"""Lorentzian line shape used for testing"""
 	return 1 / np.pi * (gamma**2 / ((omega - omega_0)**2 + gamma**2)) + noise_
 
-def kramers_kronig(model_):
-	"""Testing still"""
-
-def write_refractive(frequency, real_n, imag_n, output_path):
+def write_refractive(frequency, real_n, imag_n, output_path, file_str):
 	"""Write refractive index data to csv."""
 	wavelength = convert_unit.wavenum_to_wavelen(frequency)
 	
-	file_name = output_path + 'test_hilbert_transform.csv'
+	file_name = output_path + file_str
 	with open(file_name, 'w', newline='') as csvfile:
 		csvwriter = csv.writer(csvfile)
 		csvwriter.writerow(['"Wavelength, µm"', '"n"', '"k"'])
 		for i, x in enumerate(wavelength):
 			csvwriter.writerow([wavelength[i], real_n[i], imag_n[i]])
-	return 0
+	print("Wrote real, imaginary refractive index data to", file_name)
 
-
-def transform_absorbance(data_file, concentration, cavity_len, lbound_=2000, ubound_=2500):
-	"""Perform Hilbert transform on FTIR absorbance data.
-	   Return absorbance and transformed data."""
+def kramers_kronig(data_file, concentration, cavity_len, bounds=(-np.inf, np.inf), background=1.0):
+	"""Rescale FTIR absorbance data and perform Hilbert transform.
+	   Return transformed data."""
 
 	omega_full, absorbance_full = pp.get_data(data_file)
-	omega, absorbance = pp.truncate_data(omega_full, absorbance_full, lbound_, ubound_)
-	extinction = absorbance / (concentration * cavity_len) # absorbance / (concentration * cavity length)
-	transform = 1.33 - fft.hilbert(extinction)
+	omega, absorbance = pp.truncate_data(omega_full, absorbance_full, bounds[0], bounds[1])
+	extinction = absorbance / (concentration * cavity_len)
+	transform = background - fft.hilbert(extinction)
 	
 	return omega, transform, extinction
 	
@@ -48,12 +44,38 @@ def main():
 	#Lower, upper bound on raw and fake data
 	lbound = 500
 	ubound = 4000
+	L_cav = 9.3  # microns
 # 	n_points = 1000
-	# First we need to get raw absorbance data.
-	data_file = '/Users/garrek/projects/raw_data/absorbance/DPPA_in_DMF_2.0M_Abs_2.0M_DPPA_16scans_2.0cm.csv'
+
 	output_path = '/Users/garrek/projects/pistachio/data/refractive_index_data/'
-	hilbert_results = transform_absorbance(data_file, 2.0, 25., lbound, ubound)
-	write_refractive(*hilbert_results, output_path)
+
+	# First we need to get raw absorbance data.
+# 	data_file = '/Users/garrek/projects/raw_data/absorbance/DPPA_in_DMF/200715/Abs_DPPA_neat_BaF2_12umSpacer_16scans_2.0cm.csv'
+# 	data_file = '/Users/garrek/projects/raw_data/absorbance/DPPA_in_DMF/200715/Abs_DPPA_DMF_0.285_BaF2_12umSpacer_16scans_2.0cm.csv'
+# 	data_file = '/Users/garrek/projects/raw_data/absorbance/DPPA_in_DMF/200715/Abs_DPPA_DMF_0.913_BaF2_12umSpacer_16scans_2.0cm.csv'
+	output_path = '/Users/garrek/projects/pistachio/data/refractive_index_data/'
+# 	outfile_str = 'DPPA_DMF_0.285_BaF2_12umSpacer_L9.5.csv'
+# 	hilbert_results = kramers_kronig(data_file, concentration=4.64, cavity_len=L_cav, bounds=(lbound, ubound), background=1.551)
+# 	hilbert_results = kramers_kronig(data_file, concentration=0.285, cavity_len=L_cav, bounds=(lbound, ubound), background=1.487)
+# 	hilbert_results = kramers_kronig(data_file, concentration=0.913, cavity_len=L_cav, bounds=(lbound, ubound), background=1.495)
+	
+	# 2.24M
+# 	data_file = '/Users/garrek/projects/raw_data/absorbance/DPPA_in_DMF/200715/Abs_DPPA_DMF_2.240_BaF2_12umSpacer_16scans_2.0cm.csv'
+# 	outfile_str = 'DPPA_DMF_2.24M_BaF2_12umSpacer_L9.5.csv'	
+# 	hilbert_results = kramers_kronig(data_file, concentration=2.24, cavity_len=L_cav, bounds=(lbound, ubound), background=1.51)
+
+	# 3.027M
+# 	data_file = '/Users/garrek/projects/raw_data/absorbance/DPPA_in_DMF/200715/Abs_DPPA_DMF_3.027_BaF2_12umSpacer_16scans_2.0cm.csv'
+# 	outfile_str = 'DPPA_DMF_3.027M_BaF2_12umSpacer_L9.5.csv'	
+# 	hilbert_results = kramers_kronig(data_file, concentration=3.027, cavity_len=L_cav, bounds=(lbound, ubound), background=1.519)
+
+	# 4.01M
+	data_file = '/Users/garrek/projects/raw_data/absorbance/DPPA_in_THF/200803/Abs_DPPA_THF_4_CaF2_12umSpacer_16scans_2.0cm.csv'
+	outfile_str = 'DPPA_THF_3.97M_CaF2_12umSpacer_L9.3.csv'	
+	hilbert_results = kramers_kronig(data_file, concentration=3.97, cavity_len=L_cav, bounds=(lbound, ubound), background=1.506)
+
+# 	write_refractive(*hilbert_results, output_path, outfile_str)
+	
 
 
 # 	fig, ax = plt.subplots(3, sharex=True)
@@ -84,8 +106,8 @@ def main():
 	ax2.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=14)
 	fig.text(0.008, 0.5, 'Refractive Index', va='center', rotation='vertical', fontsize=14)
 	
-	save_file = '/Users/garrek/Documents/project_graphics/refractive_index_test.pdf'
-	fig.savefig(save_file, bbox_inches='tight')
+# 	save_file = '/Users/garrek/Documents/project_graphics/refractive_index_test.pdf'
+# 	fig.savefig(save_file, bbox_inches='tight')
 	
 # 	ax.set_title('Raw Data and Hilbert transform')
 
@@ -110,7 +132,7 @@ def main():
 # 	ax[2].scatter(omega_fake, not_lorentz, s=1)
 # 	ax[2].set_title('Testing lorentz line shape model')
 # 	
-# 	plt.show()
+	plt.show()
 
 if __name__ == "__main__":
 	main()
