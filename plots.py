@@ -44,6 +44,36 @@ def get_concentration_data(concentration_file):
 	return conc, rabi
 
 
+def get_angle_data(simulation_path):
+	"""
+	Retrieve angles, transmission amplitudes, wavenumbers
+	from transfer matrix calculations.
+	"""
+	angle_files = ns.realsorted(os.listdir(simulation_path))
+	angle_data = []
+	wavenumber_data = []
+	transmission_data = []
+	
+	for i, angle in enumerate(angle_files):
+		
+		angle_file = os.path.join(simulation_path, angle)
+		degree = float(angle[len('deg') : angle.find('.csv')])
+		angle_data.append(degree)
+		
+		transmission = []
+		wavenumber = []
+		
+		with open(angle_file, 'r', encoding='utf-8', newline='') as csvfile:
+			csvreader = csv.reader(csvfile, delimiter=',')
+			header = next(csvreader)
+			for row in csvreader:
+				wavenumber.append(10**4 / float(row[0]))  # Convert from um to cm-1
+				transmission.append(float(row[1]))
+			wavenumber_data = wavenumber
+			transmission_data.append(transmission)
+	return [angle_data, wavenumber_data, transmission_data]
+
+
 def more_points(data_array, num_points):
 	
 	multiple = int(num_points / len(data_array))
@@ -125,7 +155,7 @@ def tmm_plots(sim_path, plot_angle=0.0, save_plot=None):
 		plt.show()
 
 
-def tmm_contour_plot(sim_path, save_plot=None):
+def tmm_contour_plot(simulation_data, save_plot=None, overlay=None):
 	"""
 	Produces a color plot using angle-resolved data to plot
 	wavenumber vs angle with transmission as the z-axis.
@@ -133,42 +163,41 @@ def tmm_contour_plot(sim_path, save_plot=None):
 	If save_plot is a filename and path, then the plot is saved in the format
 	specified in the command line argument.
 	"""
-	angle_files = ns.realsorted(os.listdir(sim_path))
-	angle_data = []
-	wavenumber_data = []
-	transmission_data = []
-	
-	for i, angle in enumerate(angle_files):
-		
-		angle_file = os.path.join(sim_path, angle)
-		degree = float(angle[len('deg') : angle.find('.csv')])
-		angle_data.append(degree)
-		
-		transmission = []
-		wavenumber = []
-		
-		with open(angle_file, 'r', encoding='utf-8', newline='') as csvfile:
-			csvreader = csv.reader(csvfile, delimiter=',')
-			header = next(csvreader)
-			for row in csvreader:
-				wavenumber.append(10**4 / float(row[0]))  # Convert from um to cm-1
-				transmission.append(float(row[1]))
-			wavenumber_data = wavenumber
-			transmission_data.append(transmission)
+
+	angle, wavenumber, transmission = simulation_data
 			
-	angle_data = more_points(angle_data, len(wavenumber_data))
-	transmission_data = more_points(transmission_data, len(wavenumber_data))
-	Y, X = np.meshgrid(wavenumber_data, angle_data)
+	angle = more_points(angle, len(wavenumber))
+	transmission = more_points(transmission, len(wavenumber))
+	Y, X = np.meshgrid(wavenumber, angle)
 	fig, ax = plt.subplots()
 	cbmin = 0.0
-	cbmax = 0.2
+	cbmax = 0.1
 	cbticks = np.linspace(cbmin, cbmax, 5)
 	levels = np.linspace(cbmin, cbmax, 70)
-	m = ax.contourf(X, Y, transmission_data, levels=levels)  # More levels = finer detail
-	ax.set_ylim(1500, 3000)
+	m = ax.contourf(X, Y, transmission, levels=levels)  # More levels = finer detail
 
-	ax.set_ylabel(r'Wavenumber (cm$^{-1}$)')
-	ax.set_xlabel('Angle (degrees)')
+	if overlay:
+	# .csv file containing theta, upper/lower polariton wavenumber data from splitting fit.
+		theta = []
+		E_lp = []
+		E_up = []
+		with open(overlay, 'r', newline='') as f:
+			csvreader = csv.reader(f, delimiter=',')
+			for row in csvreader:
+				theta.append(float(row[0]))
+				E_lp.append(float(row[1]))
+				E_up.append(float(row[2]))
+		ax.plot(theta, E_lp, color='red', linestyle='dashed')
+		ax.plot(theta, E_up, color='red', linestyle='dashed')
+	
+	# Plot formatting
+	ax.set_ylim(1500, 2700)
+	
+	ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
+	ax.yaxis.set_minor_locator(ticker. AutoMinorLocator(5))
+	ax.set_ylabel(r'Wavenumber (cm$^{-1}$)', fontsize=16)
+	ax.set_xlabel('Angle (degrees)', fontsize=16)
+# 	ax.set_title('4.0M DPPA in DMF')
 	cbar = fig.colorbar(m, ticks=cbticks, label='Transmission (%)')
 	
 	plt.show()
@@ -331,8 +360,8 @@ def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, sa
 
 	mark_size = 10
 	color1 = 'dimgray'
-	color2 = 'black'
-	color3 = 'deeppink'
+	color2 = 'red'
+	color3 = 'darkblue'
 	
 	vib_label = 'molecular stretch'
 	vib_xy = (0.89, vibration[0])
@@ -342,7 +371,8 @@ def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, sa
 
 	# Generate theoretical data
 	n_points = 100
-	t_min = -35
+# 	t_min = -35
+	t_min = 0.0
 	t_max = 35
 	theta_plot = np.linspace(t_min, t_max, n_points)
 	theta_rad = [a * np.pi/180 for a in theta_plot]
@@ -364,10 +394,10 @@ def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, sa
 		E_up = pp.coupled_energies(theta_rad, E_cav0, E_vib, Rabi, n_eff, 1)
 
 		e_vib_plot = np.full((n_points, ), E_vib)
-		ax.plot(theta_plot, Ec, color=color2)
+		ax.plot(theta_plot, Ec, linestyle='dashed', color=color1)
 		ax.plot(theta_plot, E_up, color=color2)
 		ax.plot(theta_plot, E_lp, color=color2)
-		ax.plot(theta_plot, e_vib_plot, linestyle='dashed', color=color2)
+		ax.plot(theta_plot, e_vib_plot, linestyle='dashed', color=color1)
 		
 		textstr = '\n'.join((
 				  'Least Squares Fit',
@@ -393,19 +423,24 @@ def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, sa
 
 	# Figure formatting
 	ax.tick_params(axis='both', which='both', direction='in', right=True, top=True)
-	angle_ticks = [-30, -20, -10, 0, 10, 20, 30]
+# 	angle_ticks = [-30, -20, -10, 0, 10, 20, 30]
+	angle_ticks = [0, 10, 20, 30]
 	ax.set_xticks(angle_ticks, minor=True)
 	ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 	ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(5))
-	ax.set_xlabel(r'Incident angle (deg)')
-	ax.set_ylabel(ylabel)
+	ax.set_xlabel(r'Incident angle (deg)', fontsize=16)
+	ax.set_ylabel(ylabel, fontsize=16)
 
 	# Some settings for saving to PDF
 	if save_dir:
-		ax.text(1.01, 0.5, textstr, fontsize=10,
+# 		ax.text(1.01, 0.5, textstr, fontsize=10,
+# 				horizontalalignment='left', verticalalignment='top',
+# 				transform=ax.transAxes,
+# 				bbox=dict(boxstyle='square', facecolor='white'))
+		ax.text(0.15, 0.85, r'$\Omega_r = %.2f$' % (Rabi), fontsize=16,
 				horizontalalignment='left', verticalalignment='top',
 				transform=ax.transAxes,
-				bbox=dict(boxstyle='square', facecolor='white'))
+				bbox=dict(boxstyle='round', facecolor='white'))
 		file_name = file_prefix + '_dispersion_curve.pdf'
 		output_file = os.path.join(save_dir, file_name)
 		fig.savefig(output_file, bbox_inches='tight')
@@ -482,6 +517,7 @@ def parse_args():
 					   reflectance, absorptance data \
 					   (not necessarily all three)."
 	color_plot_help = "Produces a color plot from angle-dependent transmission simulation data."
+	color_overlay_help = "If you have some data that you want to overlay on top of the color plot, put it into a csv file."
 	reference_help = "Input file from reference data (filmetrics, refractiveindex, etc.)"
 	refl_ref_help = "For testing: path for reflectance data downloaded from filmetrics."
 	trans_ref_help = "For testing: path for transmittance data downloaded from filmetrics"
@@ -502,6 +538,7 @@ def parse_args():
 
 	parser.add_argument('--transmission', help=transmission_help)
 	parser.add_argument('--color_plot', help=color_plot_help)
+	parser.add_argument('--color_overlay', help=color_overlay_help)
 	parser.add_argument('-D', '--dispersion', help=dispersion_help)
 	parser.add_argument('-T', '--angle', help=angle_help)
 	parser.add_argument('--save_plot', help=save_help)
@@ -525,7 +562,8 @@ def main():
 		tmm_plots(args.transmission, args.save_plot)
 
 	if args.color_plot:
-		tmm_contour_plot(args.color_plot, args.save_plot)
+		simulation_data = get_angle_data(args.color_plot)
+		tmm_contour_plot(simulation_data, args.save_plot, overlay=args.color_overlay)
 
 	if args.dispersion:
 		#TODO: Use parameter strings to title plots
