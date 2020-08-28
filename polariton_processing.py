@@ -141,7 +141,7 @@ def get_angle_data_from_dir(directory):
 				# Get the angle of the measurement from file string
 				deg_s = spectrum.find(deg_str) + len(deg_str)
 				deg_e = spectrum.find('_', deg_s)
-				deg = int(spectrum[deg_s:deg_e])
+				deg = float(spectrum[deg_s:deg_e])
 				wavenum, intensity = get_data(spec_file)
 				angle_data.append([deg, wavenum, intensity])
 
@@ -677,7 +677,7 @@ def parse_args():
 
 
 	parser.add_argument('spectral_data', help=spectrum_help)
-	parser.add_argument('-F', '--config_file', help=config_help)
+	parser.add_argument('--config', help=config_help)
 	parser.add_argument('-M', '--cavity_mode', help=cavity_help)
 	parser.add_argument('-E', '--cav_center', help=cav_cen_help)
 	parser.add_argument('-P', '--polariton', action='store_true', help=pol_help)
@@ -689,44 +689,13 @@ def parse_args():
 	return parser.parse_args()
 
 
-# ====== Plotting (might move to separate module) ====== #
-
-def plot_absorbance(k, I, lor, bounds):
-
-	low_bound = bounds[0]
-	up_bound = bounds[1]
-
-	fig, (ax, axf) = plt.subplots(2)
-
-	ax.plot(k, I)
-	ax.set_xlim([int(up_bound), int(low_bound)])
-
-	axf.plot(k, lor.lor_func(k))
-	axf.set_xlim([int(up_bound), int(low_bound)])
-
-	ax.set_xlabel(r'Wavenumber (cm$^{-1}$)')
-	ax.set_ylabel('Transmission (%)')
-	axf.set_xlabel(r'Wavenumber (cm$^{-1}$)')
-	axf.set_ylabel('Transmission (%)')
-
-	plt.show()
-
-	return 0
-
-def plot_polariton(x_, y_, fit_func):
-	"""Makes a single plot for polariton data"""
-
-	fig, ax = plt.subplots()
-	ax.plot(x_, y_)
-	ax.plot(x_, fit_func)
-
 def main():
 	args = parse_args()
 	spectral_data = args.spectral_data
 
-	if args.config_file:
+	if args.config:
 	
-		config_params = args.config_file
+		config_params = args.config
 		bounds = get_bounds_from_yaml(config_params)
 		bounds.sort()
 		output_path = get_output_path_from_yaml(config_params)

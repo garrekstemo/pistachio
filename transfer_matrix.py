@@ -389,7 +389,7 @@ def write_tmm_results(angle, output_dir, rows):
 	"""Writes transmission, reflectance, abosorbance data to csv file"""
 
 	wavelens, trans, refl, absor = rows
-	file_name = 'deg' + str(angle) + '.csv'
+	file_name = 'deg' + str(angle) + '_.csv'  # Underscore is to make it work with reading in angle in another method
 	output_file = os.path.join(output_dir, file_name)
 
 	with open (output_file, 'w', encoding='utf8', newline='') as out_file:
