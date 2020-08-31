@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 from ruamel_yaml import YAML
 import pdb
 import convert_unit
+import pmath
 
 yaml = YAML()
 
@@ -123,8 +124,15 @@ def get_data(spectral_data):
 				break
 	return wavenumber_list, intensity_list
 
-def get_angle_data_from_dir(directory):
-	"""Extracts angle-resolved and absorbance data from each file in the supplied directory"""
+def get_angle_data_from_dir(directory, convert_units=None):
+	"""
+	Extracts angle-resolved and absorbance data from each file in the supplied directory.
+	x-axis data is assumed to be in cm-1, but you can convert to other units here.
+	
+	convert_units: This should be a tuple containing the input units and the desired output units
+				   Available units are in the pmath Convert class.
+				   Example: convert_units = ('cm-1', 'um')
+	"""
 
 	abs_wavenum = np.array([]) 			 # absorbance wavenumbers
 	abs_intensity = np.array([])			 # absorbance intensities
@@ -142,8 +150,12 @@ def get_angle_data_from_dir(directory):
 				deg_s = spectrum.find(deg_str) + len(deg_str)
 				deg_e = spectrum.find('_', deg_s)
 				deg = float(spectrum[deg_s:deg_e])
-				wavenum, intensity = get_data(spec_file)
-				angle_data.append([deg, wavenum, intensity])
+				x_data, intensity = get_data(spec_file)
+
+				if convert_units:
+					x_data = pmath.set_units(x_data, convert_units[0], convert_units[1])
+
+				angle_data.append([deg, x_data, intensity])
 
 			# Get absorbance data if the file exists (it should always exist)
 			if abs_str in spectrum:
@@ -193,21 +205,27 @@ def get_sample_params(directory):
 		params.remove('in')
 	return sample_name, params
 
-def truncate_data(xdata, ydata, bound1, bound2):
+def truncate(xdata, ydata, bound1, bound2):
 	"""Truncate data to isolate desired peaks for fitting"""
 	i = 0
 	MAX = len(xdata)
+	zipped = zip(xdata, ydata)
+	sorted_data = sorted(zipped, key = lambda t: t[0])
+	xdata, ydata = zip(*sorted_data)
+	xdata = np.asarray(xdata)
+	ydata = np.asarray(ydata)
 	lower_pt = 0
 	upper_pt = 0
-
-	while i < MAX:
-		if np.round(xdata[i], 0) == float(bound1):
+	
+	for i, val in enumerate(xdata):
+		if np.round(val, 0) == float(bound1):
 			lower_pt = i
-		if np.round(xdata[i], 0) == float(bound2):
-			upper_pt = i
-		i+=1
 
+		if np.round(val, 0) == float(bound2):
+			upper_pt = i
+	
 	return xdata[lower_pt:upper_pt], ydata[lower_pt:upper_pt]
+
 
 
 # ============== Write results to files ============== #
@@ -245,10 +263,7 @@ def write_angle_spec_to_file(angle_data_list, sample_name, out_path):
 			filewriter.writerow(row)
 			i+=1
 
-	print('')
 	print('Wrote angle-resolved spectra results to {}\n'.format(output))
-
-	return 0
 
 def write_dispersion_to_file(angles, E_up, E_lp, E_vib, E_cav, sample_name, out_path):
 	"""Takes angles and energies (wavenumbers) for upper and lower
@@ -523,11 +538,6 @@ def splitting_least_squares(initial, angles, Elp, Eup):
 								   x0=initial,
 								   args=(angles, Elp, Eup))
 	return optim
-
-def find_polariton_peaks(wavenum, intensity):
-	"""Not Implemented."""
-	peaks, prop = signal.find_peaks(intensity, threshold=(2,2))
-	return peaks
 	
 
 def lorentzian_parsing(angle_data, absor_data, fit_func, bounds):

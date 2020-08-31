@@ -266,25 +266,27 @@ def propagation_matrix(wavenumber, layer_thickness):
 
 	return P_i
 
+
 def dynamical_matrix(n_, theta=0.0, wave_type='mixed'):
 	"""Inputs: index of refraction, angle of incidence
 		Outputs: dynamical matrices for s-wave and p-wave."""
 
 	# s-wave dynamical matrix
 	m = n_ * np.cos(theta)
-	Ds = np.array([[1, 1], [m, -m]])
+	Ds = np.array([[1, 1], [m, -m]]) * 1.0
 
 	# p-wave dynamical matrix
-	Dp = np.array([[np.cos(theta), np.cos(theta)], [n_, -n_]])
+	Dp = np.array([[np.cos(theta), np.cos(theta)], [n_, -n_]]) * 1.0
 
 	if wave_type == 's-wave':
 		return Ds
 	elif wave_type == 'p-wave':
 		return Dp
 	elif wave_type == 'mixed':
-		pol_msg = "\nNo wave acceptable polarization passed in.\nMixed-wave not yet supported.\nSee --help for more info. Exiting...."
+		pol_msg = "\nNo acceptable polarization passed in.\nMixed-wave not yet supported.\nSee --help for more info. Exiting...."
 		print(pol_msg)
 		sys.exit()
+
 
 def find_reflectance(M_):
     """Input: multilayer matrix, M.
@@ -297,6 +299,7 @@ def find_reflectance(M_):
     R = r_sq
 
     return R
+
 
 def find_transmittance(M_):
     """
@@ -311,6 +314,7 @@ def find_transmittance(M_):
     T = np.linalg.det(M_) * t_sq
 
     return T
+
 
 def build_matrix_list(wavelength, theta, layers, wave_type):
 	"""
@@ -343,6 +347,7 @@ def build_matrix_list(wavelength, theta, layers, wave_type):
 
 	return matrices
 
+
 def matrix_product(matrices):
 	"""Product of matrices"""
 
@@ -351,6 +356,7 @@ def matrix_product(matrices):
 	for i in matrices:
 		M = np.matmul(M, i)
 	return M
+
 
 def field_amp(matrix_list, A0_, B0_):
 	"""E_s = M*E_0
@@ -385,6 +391,7 @@ def field_amp(matrix_list, A0_, B0_):
 
 	return field
 
+
 def write_tmm_results(angle, output_dir, rows):
 	"""Writes transmission, reflectance, abosorbance data to csv file"""
 
@@ -393,7 +400,7 @@ def write_tmm_results(angle, output_dir, rows):
 	output_file = os.path.join(output_dir, file_name)
 
 	with open (output_file, 'w', encoding='utf8', newline='') as out_file:
-		#TODO: Also output wavenumbers
+
 		filewriter = csv.writer(out_file, delimiter=',')
 		header = ['Wavelength',
 				  'Transmittance',
@@ -405,7 +412,7 @@ def write_tmm_results(angle, output_dir, rows):
 			row = [wavelens[i], trans[i], refl[i], absor[i]]
 			filewriter.writerow(row)
 			i+=1
-# 	logger.info("Wrote results to {}".format(output_file))
+
 
 def output_field_profile(wavelens, layers, E_amps):
 	"""
@@ -512,7 +519,8 @@ def perform_transfer_matrix(sim_path, angle, wavelengths, layers, wave_type):
 		absorbance.append(1 - T - R)
 
 	#Write everything to a csv file
-	write_tmm_results(angle, sim_path, [wavelengths, transmittance, reflectance, absorbance])
+	row = [wavelengths, transmittance, reflectance, absorbance]
+	write_tmm_results(angle, sim_path, row)
 # 	results = [wavelengths, transmittance, reflectance, absorbance]
 # 	return angle, sim_path, results
 
@@ -597,6 +605,7 @@ def parse_arguments():
 	output_help = "Directory for transfer matrix results."
 	pwave_help = "Boolean. Incident wave is p-wave."
 	swave_help = "Boolean. Incident s-wave."
+	units_help = "Choose the units for the output electric field. Default is micrometers."
 
 	parser.add_argument('--debug', action='store_true', help="Enable debugging.")
 	parser.add_argument("device", help=device_help)
@@ -612,7 +621,7 @@ def main(args):
 	logger.debug("Debugging enabled")
 	logger.info("Start simulation")
 	logger.info("Loading device parameters from {}".format(args.device))
-	
+
 	wave_type = 'mixed'
 	if args.pwave:
 		wave_type = 'p-wave'

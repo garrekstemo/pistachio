@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.fftpack as fft
+from scipy import constants
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import polariton_processing as pp
@@ -7,13 +8,89 @@ import convert_unit
 import csv
 
 
-def gauss_model( omega, noise_=0., A=1, W=45, omega_0=2172):
-	"""Gaussian line shape used for testing"""
-	return A * np.exp(-((omega - omega_0) / W)**2) + noise_
+
+def square_root(x, x0, y0):
+	"""Square root used for concentration-dependence.
+	x0 is an optional normalization factor."""
+	return [ y0 + np.sqrt(x_i / x0) for x_i in x]
+
+
+def gaussian(w, amp, w_0, gamma):
+	"""Gaussian function usually used for line shape"""
+	return amp / (gamma * np.sqrt(2*np.pi)) * np.exp(- ((w - w_0)**2 / (2 * gamma**2)))
+
+
+def lorentzian(w, amp, w_0, fwhm):
+	"""Lorentzian function usually used for line shape"""
+	return amp / np.pi * (fwhm/2)**2 / ((w - w_0)**2 + (fwhm/2)**2)
+
+
+def pseudo_voigt(w, amp, w_0, gamma, m):
+	"""
+	Linear combination of Lorentzian and Gaussian distribution functions.
+
+	w = frequency variable
+	amp = Amplitude
+	w_0 = peak center position
+	gamma = phenomenological damping factor
+	m = weight factor
+	"""
+	return m * gaussian(w, amp, w_0, gamma) + (1 - m) * lorentzian(w, amp, w_0, gamma)
+
+
+def p(w, a, w_0, gamma):
+	"""
+	This perturbation function p(w) introduces an  asymmetry to Gaussian and Lorentzian line shapes.
+
+	a=0 is the unperturbed (symmetric) system.
+	a>0  corresponds to a tailing or skewing towards positive frequencies.
+	a<0 corresponds to skewing in the direction of negative frequencies.
+
+	Perform a substitution w -> w*p(w) in the Gaussian or Lorenztian functions
+	to introduce this asymmetry:
+
+	G(w * p(w)), L(w * p(w)) or 
+	f(w, a) = m * G(w * p(w)) + (1-m) * L(w * p(w)).
+	"""
+	return 1 - a * (w - w_0) / gamma * np.exp(- (w - w_0)**2 / (2 * (2*gamma)**2))
+
+
+def asym_voigt(w, amp, w_0, gamma, a, m):
+	w = w * p(w, a, w_0, gamma)
+	return pseudo_voigt(w, amp, w_0, gamma, m)
+
+
+def double_asym_voigt(w, amp1, w1, gamma1, a1, m1, amp2, w2, gamma2, a2, m2):
+	w1 = w1 * p(w1, a1, w1, gamma1)
+	w2 = w2 * p(w2, a2, w2, gamma2)
+	return asym_voigt(w, amp1, w1, gamma1, a1, m1) + asym_voigt(w, amp2, w2, gamma2, a2, m2)
+
+
+def cavity_mode_energy(angle, E0, n_eff):
+	return E0 / np.sqrt(1 - (np.sin(angle) /n_eff)**2)
+
+
+def coupled_energies(theta, E0, Ee, V, n_eff, branch=0):
+	"""Eigen-energies of coupled-state Hamiltonian."""
+	Ec = E0 / np.sqrt(1 - (np.sin(theta) /n_eff)**2)
+	if branch == 0:
+		E_coupled = 0.5*(Ee + Ec) - 0.5*np.sqrt(4*V**2 + (Ee - Ec)**2)
+	elif branch == 1:
+		E_coupled = 0.5*(Ee + Ec) + 0.5*np.sqrt(4*V**2 + (Ee - Ec)**2)
+	return E_coupled
+
+
+def kramers_kronig(data_file, concentration, cavity_len, bounds=(-np.inf, np.inf), background=1.0):
+	"""Rescale FTIR absorbance data and perform Hilbert transform.
+	   Return transformed data."""
+
+	omega_full, absorbance_full = pp.get_data(data_file)
+	omega, absorbance = pp.truncate_data(omega_full, absorbance_full, bounds[0], bounds[1])
+	extinction = absorbance / (concentration * cavity_len)
+	transform = background - fft.hilbert(extinction)
 	
-def lorentz_model(omega, noise_=0., gamma=40., omega_0=2172):
-	"""Lorentzian line shape used for testing"""
-	return 1 / np.pi * (gamma**2 / ((omega - omega_0)**2 + gamma**2)) + noise_
+	return omega, transform, extinction
+
 
 def write_refractive(frequency, real_n, imag_n, output_path, file_str):
 	"""Write refractive index data to csv."""
@@ -26,18 +103,82 @@ def write_refractive(frequency, real_n, imag_n, output_path, file_str):
 		for i, x in enumerate(wavelength):
 			csvwriter.writerow([wavelength[i], real_n[i], imag_n[i]])
 	print("Wrote real, imaginary refractive index data to", file_name)
-
-def kramers_kronig(data_file, concentration, cavity_len, bounds=(-np.inf, np.inf), background=1.0):
-	"""Rescale FTIR absorbance data and perform Hilbert transform.
-	   Return transformed data."""
-
-	omega_full, absorbance_full = pp.get_data(data_file)
-	omega, absorbance = pp.truncate_data(omega_full, absorbance_full, bounds[0], bounds[1])
-	extinction = absorbance / (concentration * cavity_len)
-	transform = background - fft.hilbert(extinction)
 	
-	return omega, transform, extinction
+
+# =============== Unit Conversions =============== #
+
+
+
+def deg_to_rad(angles):
+	"""Convert degrees to radians."""
+	angles = [a * np.pi/180 for a in angles]
+	return angles
+
+def wavenumber_wavelength(wavenum):
+	"""cm^-1 to micrometers"""
+	wavelength = 10**4 / wavenum * 1.0
+	return wavelength
 	
+
+# def wavelength_to_wavenumber(micrometers):
+# 	"""micrometers to cm^-1"""
+# 	wavenumbers = 10**4 / wave
+
+def joules_to_ev(joules):
+	ev = joules / constants.elementary_charge
+	return ev
+
+def wavenum_to_joules(wavenum):
+	"""cm^-1 to photon energy"""
+	cm_to_m = 1/100
+	joules = constants.h * constants.c * (wavenum / cm_to_m)
+	return joules
+
+def wavenum_to_ev(wavenum):
+	"""cm^-1 to eV units"""
+	energy_J = wavenum_to_joule(wavenum)
+	energy_ev = joule_to_ev(energy_J)
+	return energy_ev
+
+def ev_to_wavenum(energy_ev):
+	"""Convert eV to cm^-1"""
+	wavenumber = energy_ev / (constants.h * constants.c) * constants.elementary_charge / 100
+	return wavenumber
+
+def set_units(unit_data, current_units, set_units):
+	#TODO: Handle arbitrary units from input data.
+	# Assume input unit_data in cm^-1
+	
+# 	unit_data = np.array([unit_data])
+	cm_to_m = 1/100
+	energy = [wavenum_to_joules(d) for d in unit_data]
+	energy_to_ev = [joules_to_ev(en) for en in energy]
+	wavenumber_to_wavelength = [wavenumber_wavelength(d) for d in unit_data]
+
+	if current_units == 'cm-1':
+		if set_units == 'ev':
+			new_units = energy_to_ev
+		elif set_units == 'cm-1':
+			new_units = unit_data
+		elif set_units == 'um':
+			new_units = wavenumber_wavelength
+
+	elif current_units == 'ev':
+		if set_units == 'ev':
+			new_units = unit_data
+		elif set_units == 'cm-1':
+			new_units = [ev_to_wavenum(k) for k in unit_data]
+		elif set_units == 'um':
+			print("Why in the world would you want to convert to wavelength?")
+			new_units = unit_data
+	elif current_units == 'um':
+		if set_units == 'ev':
+			print('not right now')
+		elif set_units == 'cm-1':
+			new_units = wavenumber_wavelength(unit_data)
+
+	return new_units
+
 
 def main():
 	
