@@ -13,6 +13,7 @@ import matplotlib.ticker as ticker
 from scipy import constants
 from scipy import stats
 import convert_unit
+import pmath
 
 
 # ================ Get data from files ================ #
@@ -57,7 +58,7 @@ def get_angle_data(simulation_path):
 	for i, angle in enumerate(angle_files):
 		
 		angle_file = os.path.join(simulation_path, angle)
-		degree = float(angle[len('deg') : angle.find('.csv')])
+		degree = float(angle[len('deg') : angle.find('_')])
 		angle_data.append(degree)
 		
 		transmission = []
@@ -177,7 +178,7 @@ def tmm_contour_plot(simulation_data, save_plot=None, overlay=None):
 	m = ax.contourf(X, Y, transmission, levels=levels)  # More levels = finer detail
 
 	if overlay:
-	# .csv file containing theta, upper/lower polariton wavenumber data from splitting fit.
+	# A csv file containing theta, upper/lower polariton wavenumber data from splitting fit.
 		theta = []
 		E_lp = []
 		E_up = []
@@ -191,19 +192,22 @@ def tmm_contour_plot(simulation_data, save_plot=None, overlay=None):
 		ax.plot(theta, E_up, color='red', linestyle='dashed')
 	
 	# Plot formatting
-	ax.set_ylim(1500, 2700)
+	ax.set_ylim(1800, 2500)
 	
+	ax.tick_params(axis='both', labelsize=14)
 	ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 	ax.yaxis.set_minor_locator(ticker. AutoMinorLocator(5))
 	ax.set_ylabel(r'Wavenumber (cm$^{-1}$)', fontsize=16)
 	ax.set_xlabel('Angle (degrees)', fontsize=16)
 # 	ax.set_title('4.0M DPPA in DMF')
-	cbar = fig.colorbar(m, ticks=cbticks, label='Transmission (%)')
+	cbar = fig.colorbar(m, ticks=cbticks)
+	cbar.set_label(label='Transmission (%)', size='large')
+	cbar.ax.tick_params(labelsize='large')
 	
-	plt.show()
+# 	plt.show()
 	
 	if save_plot:
-		save_plot_pdf(fig, save_plot)
+		fig.savefig(str(save_plot), pad_inches=0.1, format='pdf', bbox_inches='tight')
 
 
 def reference_data(data_file):
@@ -358,6 +362,7 @@ def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, sa
 
 	fig, ax = plt.subplots()
 
+
 	mark_size = 10
 	color1 = 'dimgray'
 	color2 = 'red'
@@ -378,20 +383,21 @@ def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, sa
 	theta_rad = [a * np.pi/180 for a in theta_plot]
 	
 	# Nonlinear least squares results labeling
+	print(splitting)
 	if splitting:
-		
+
 		# Get fitting params from text file and convert units
 		params = get_splitting_results(splitting)
 		E_cav0 = params['E_cav_0']
 		n_eff = params['n']
-		Rabi = params['Rabi']
+		Rabi = 2*params['Rabi']
 		E_vib = params['E_vib']
 		E_cav0, E_vib, Rabi = convert_unit.set_units([E_cav0, E_vib, Rabi], current_units, plot_units)
 		
 		# Generate curve from fitting data
-		Ec = pp.cavity_mode_energy(theta_rad, E_cav0, n_eff)
-		E_lp = pp.coupled_energies(theta_rad, E_cav0, E_vib, Rabi, n_eff, 0)
-		E_up = pp.coupled_energies(theta_rad, E_cav0, E_vib, Rabi, n_eff, 1)
+		Ec = pmath.cavity_mode_energy(theta_rad, E_cav0, n_eff)
+		E_lp = pmath.coupled_energies(theta_rad, E_cav0, E_vib, Rabi, n_eff, 0)
+		E_up = pmath.coupled_energies(theta_rad, E_cav0, E_vib, Rabi, n_eff, 1)
 
 		e_vib_plot = np.full((n_points, ), E_vib)
 		ax.plot(theta_plot, Ec, linestyle='dashed', color=color1)
@@ -430,7 +436,8 @@ def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, sa
 	ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 	ax.set_xlabel(r'Incident angle (deg)', fontsize=16)
 	ax.set_ylabel(ylabel, fontsize=16)
-
+	ax.set_xlim(-1.75, 36.75)
+	ax.set_ylim(2084.596, 2296.044)
 	# Some settings for saving to PDF
 	if save_dir:
 # 		ax.text(1.01, 0.5, textstr, fontsize=10,
@@ -443,7 +450,7 @@ def plot_dispersion(file_prefix, dispersion_file, plot_units, splitting=None, sa
 				bbox=dict(boxstyle='round', facecolor='white'))
 		file_name = file_prefix + '_dispersion_curve.pdf'
 		output_file = os.path.join(save_dir, file_name)
-		fig.savefig(output_file, bbox_inches='tight')
+		fig.savefig(output_file, bbox_inches='tight', transparent=True)
 		print("Saved dispersion plot to {}".format(output_file))
 	else:
 		plt.show()
@@ -573,7 +580,7 @@ def main():
 		if args.splitting_results:
 			plot_dispersion(file_prefix, dispersion_data, display_units, args.splitting_results, args.save_plot)
 		else:
-			plot_dispersion(file_prefix, dispersion_data, display_units, args.save_plot)
+			plot_dispersion(file_prefix, dispersion_data, display_units, save_dir=args.save_plot)
 
 	if args.angle:
 		angle_data = args.angle
@@ -586,7 +593,7 @@ def main():
 	
 	if args.concentration:
 		plot_splitting_concentration(args.concentration)
-		
+
 	if args.residuals:
 		plot_curve_fit_residuals(args.residuals)
 	
