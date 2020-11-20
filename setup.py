@@ -5,10 +5,10 @@ with open("README.md", 'r', encoding='utf-8') as fh:
 
 setuptools.setup(
     name="Pistachio",
-    version="0.8.0",
+    version="0.9.0",
     author="Garrek Stemo",
     author_email="stemo.garrek_danneker.se3@ms.naist.jp",
-    description="A transfer matrix algorithm and related packages",
+    description="A transfer matrix algorithm and data visualization tools",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/garrekds/pistachio",
