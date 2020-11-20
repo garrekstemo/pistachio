@@ -1,13 +1,17 @@
 #!/usr/bin/env python
+
 """
 Name: Transfer Matrix
 Author: Garrek Stemo
+Affiliation: Nara Institute of Science and Technology
+
 
 Convention used:
 Psi(x, t) = Psi_0 * exp(i(kx - wt))
 n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary part.
 Yeh, Pochi. 2005. Optical Wave in Layered Media.
 """
+
 import argparse
 import codecs
 import csv
@@ -262,7 +266,7 @@ def propagation_matrix(wavenumber, layer_thickness):
 	   Output: propagation matrix (phase accumulation for plane wave
 				propagating through homogeneous medium)."""
 	phi = wavenumber*layer_thickness
-	P_i = np.array([[np.exp(-1j*phi), 0.0], [0.0, np.exp(1j*phi)]]) * 1.0
+	P_i = np.array([[np.exp(-1j*phi), 0.0], [0.0, np.exp(1j*phi)]])
 
 	return P_i
 
@@ -273,10 +277,10 @@ def dynamical_matrix(n_, theta=0.0, wave_type='mixed'):
 
 	# s-wave dynamical matrix
 	m = n_ * np.cos(theta)
-	Ds = np.array([[1, 1], [m, -m]]) * 1.0
+	Ds = np.array([[1, 1], [m, -m]])
 
 	# p-wave dynamical matrix
-	Dp = np.array([[np.cos(theta), np.cos(theta)], [n_, -n_]]) * 1.0
+	Dp = np.array([[np.cos(theta), np.cos(theta)], [n_, -n_]])
 
 	if wave_type == 's-wave':
 		return Ds
