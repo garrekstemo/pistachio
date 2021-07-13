@@ -6,28 +6,57 @@ import natsort as ns
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import pandas as pd
 import seaborn as sns
+import data_io
+import pmath
 
 
-def plot_spectra(dataframe, rawpath, ax, offset=0):
+def get_one_spectrum(data_series, raw_path):
+	"""
+	Plot spectrum in a pandas Series.
+	"""
+	label = ''
+	wavenumber = np.array([])
+	intensity = np.array([])
+	data_set_path = str(data_series['Path'])
+	
+	if data_set_path != 'nan':
+		data_path = raw_path + data_set_path
+		dat, absorb = data_io.get_angle_data_from_dir(data_path)
+		for idx, spectrum in enumerate(dat):
+			if spectrum[0] == 0.0:
+				angle, wavenumber, intensity = spectrum
+				splitting = str(round(data_series['Splitting'], 1))
+				concentration = str(round(data_series['Concentration'], 1))
+				solvent = data_series['Solvent']
+				label = r'$\Omega_R=$' + splitting + ', ' + solvent + ' C=' + concentration + 'M'
+				
+	return [wavenumber, intensity, label]
+# 				ax.plot(wavenumber, intensity + offset, label=label)
+
+
+def get_all_spectra(pd_data, raw_path):
 	"""
 	Plot all spectra in a dataframe
 	"""
-	i = 0
-	for index, row in dataframe.iterrows():
-		row_path = str(row['Path'])
-		if row_path != 'nan':
-			datapath = rawpath + row_path
-			data, absorb = get_angle_data_from_dir(datapath)
-			for idx, spectrum in enumerate(data):
-				if spectrum[0] == 0.0:
-					angle, wavenumber, intensity = spectrum
-					splitting = str(round(row['Splitting'], 1))
-					concentration = str(round(row['Concentration'], 1))
-					solvent = row['Solvent']
-					label = r'$\Omega_R=$' + splitting + ', ' + solvent + ' C=' + concentration + 'M'
-					ax.plot(wavenumber, intensity + i*offset, label=label)
-		i+=1
+	
+	plot_data = []
+	if isinstance(pd_data, pd.DataFrame):
+		for idx, row in pd_data.iterrows():
+			# Each row in the pandas DataFrame is a Series.
+# 			plot_offset = i * offset
+			plot_info = get_one_spectrum(row, raw_path)
+			plot_data.append(plot_info)
+		
+		return plot_data
+
+	elif isinstance(pd_data, pd.Series):
+		return [get_one_spectrum(pd_data, raw_path)]
+
+	else:
+		print('Not a valid pandas object.')
+
 
 
 def get_angle_data(simulation_path):
@@ -88,6 +117,7 @@ def tmm_contour_plot(simulation_data, overlay=None):
 	angle = more_points(angle, len(wavenumber))
 	transmission = more_points(transmission, len(wavenumber))
 	Y, X = np.meshgrid(wavenumber, angle)
+	
 	fig, ax = plt.subplots()
 	cbmin = 0.0
 	cbmax = 0.1
@@ -123,3 +153,36 @@ def tmm_contour_plot(simulation_data, overlay=None):
 	cbar.ax.tick_params(labelsize='large')
 	
 # 	plt.show()
+
+
+def plot_mode_dispersion(to_plot, ax=None, **kwargs):
+
+    theta, energy = to_plot
+    return ax.plot(theta, energy)
+    
+
+def save_plot_data(directory, plot_data, plot_name, col_names):
+	"""
+	Save experimental or fit data in easy-to-plot format.
+	directory: should be the directory where raw data is stored (don't separate raw data from plot data).
+	plot_data: the data you wish to plot later.
+	plot_name: name of the save file.
+	col_names: column names as a list of strings. Must match plot_data length.
+	"""
+	if ".csv" not in plot_name:
+		plot_name = plot_name + ".csv"
+	plot_file = directory + plot_name
+	
+	with open(plot_file, 'w', newline='') as f:
+		
+		csvwriter = csv.writer(f, delimiter=',')
+		csvwriter.writerow(col_names)
+		for row in plot_data:
+			csvwriter.writerow(row)
+		
+		
+		
+		
+		
+		
+	

@@ -9,7 +9,7 @@ Affiliation: Nara Institute of Science and Technology
 Convention used:
 Psi(x, t) = Psi_0 * exp(i(kx - wt))
 n = n' + i*n'', where n' is real part of refractive index and n'' is imaginary part.
-Yeh, Pochi. 2005. Optical Wave in Layered Media.
+Yeh, Pochi. 2005. Optical Waves in Layered Media.
 """
 
 import argparse

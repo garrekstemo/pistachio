@@ -1,1 +1,2 @@
 include data/refractiveindex_info/*
+include notebooks/*

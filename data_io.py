@@ -11,7 +11,6 @@ from scipy import optimize
 from scipy.interpolate import interp1d
 from scipy import constants
 from scipy import signal
-import lmfit as lm
 import matplotlib.pyplot as plt
 from ruamel_yaml import YAML
 import pdb
