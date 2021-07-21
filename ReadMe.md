@@ -3,7 +3,7 @@
 Author: Garrek Stemo\
 Affiliation: Nara Institute of Science and Technology\
 Date Created: July 5, 2019\
-Updated: November 20, 2020
+Updated: July 21, 2021
 
 Pistachio is a suite of software for analysis of coupled light-matter phenomenon.
 It includes a transfer matrix program and fitting procedures for generating dispersion curves, both from experimental data and simulated.
