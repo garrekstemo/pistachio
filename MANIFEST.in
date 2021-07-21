@@ -1,2 +1,17 @@
-include data/refractiveindex_info/*
-include notebooks/*
+include *.in
+include *.md
+include *.py
+recursive-include __pycache__ *.pyc
+recursive-include build *.py
+recursive-include data *.csv
+recursive-include data *.pdf
+recursive-include data *.py
+recursive-include data *.pyc
+recursive-include data *.txt
+recursive-include default *.py
+recursive-include default *.pyc
+recursive-include default *.yaml
+recursive-include dist *.gz
+recursive-include dist *.whl
+recursive-include notebooks *.ipynb
+recursive-include testing *.py

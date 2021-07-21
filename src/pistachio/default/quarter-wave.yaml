@@ -1,0 +1,32 @@
+num_points: 100
+min_wl: 1.0
+max_wl: 1.0
+wave:
+    theta_in: 0.0
+    A0: 1
+    B0: 0
+layers:
+    layer0:
+        material: 1.00
+        thickness: 0
+        wavelength: None
+        index: 1.0
+        extinction: 0.0
+    layer1: 
+        material: 2.32
+        thickness: 0.1077586207
+        wavelength: None
+        index: 2.32
+        extinction: 0.0
+    layer2:
+        material: 1.36
+        thickness: 0.1838235294
+        wavelength: None
+        index: 1.36
+        extinction: 0.0
+    layer3: 
+        material: 2.32
+        thickness: 0
+        wavelength: None
+        index: 2.32
+        extinction: 0.0
