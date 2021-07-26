@@ -89,6 +89,6 @@ Then go to the command line. Navigate to the directory where you want to put Pis
 `git clone https://github.com/garrekds/pistachio .` 
 
 This is a Python package now, so you can use `pip install .` to install it once you download the source code.
-Pistachio has now been published on PyPi.org, so you can also install from there using pip.
+Pistachio has now been published on PyPi.org, so you can also install from there using `pip install pistachio-tm`.
 
 
