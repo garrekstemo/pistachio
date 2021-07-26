@@ -10,6 +10,9 @@ As of July 2021, it has been almost completely refactored from a command-line ap
 
 Unit tests have been implemented to ensure the reproducibility of the code. Unit tests and integration tests are still in active development with the goal of creating a program that stands up to scientific rigor and reproducibility with a test-driven approach that is lacking in the scientific programming community.
 
+Pistachio uses the new type hinting features introduced in Python 3.9, which helps greatly with writing 
+clean, reproducible code. Type hinting also aids readability when distributing sometimes complex
+code among the scientific community. 
 
 ## Transfer Matrix Method
 
