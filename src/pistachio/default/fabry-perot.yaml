@@ -4,7 +4,7 @@
 
 num_points: 10000  # Number of wavelengths to sweep through between min and max wavelength
 min_wavelength: 1.6e-6  # Starting wavelength
-max_wavelength: 10e-6   # Ending wavelength
+max_wavelength: 10.e-6   # Ending wavelength
 wave:  # Properties of incident electric wave
     polarization: "s-wave"              # must be 's-wave' or 'p-wave'
     theta_i: 0.0                        # Initial light/device incident angle

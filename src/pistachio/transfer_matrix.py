@@ -10,17 +10,18 @@ import argparse
 import csv
 import importlib.resources as pkg_resources
 import logging
-import os
-import sys
-import time
 import matplotlib.gridspec as gridspec
 import multiprocessing
 import numpy as np
+import os
+import sys
 from ruamel.yaml import YAML
-import scipy.constants as sc
+import scipy.constants as const
 from scipy import interpolate
+import time
 from tqdm import tqdm
-from pistachio.data import refractive_index_data  # import directory containing refractive index info
+
+from pistachio.data import refractive_index_data
 
 yaml = YAML()
 # FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s - %(message)s")
@@ -35,17 +36,16 @@ class Layer:
 	Attributes
 	----------
 	material : string
-			   name of the material comprising this layer.
+		Name of the material comprising this layer.
 	thickness : float
-				thickness of the layer (in meters).
+		Thickness of the layer (in meters).
 	refractive_index : [...,...,...] 1d array
-					   real part of the complex refractive index.
+		Real part of the complex refractive index.
 	extinction_coeff : [..., ..., ...] 1d array
-					   imaginary part of the complex refractive index.
-	
+		Imaginary part of the complex refractive index.
 	"""
-	def __init__(self, material: str='Air', thickness: float=1.0e-3, wavelengths: list=[],
-				 n_real: list=[], n_imag: list=[], num_points: int=100):
+	def __init__(self, material: str='Air', thickness: float=1.0e-3, wavelengths: list=[1.0e-5],
+				 n_real: list=[1.0003], n_imag: list=[0.0], num_points: int=100):
 
 		self.material = material
 		self.thickness = thickness
@@ -64,14 +64,13 @@ class Layer:
 		Parameters
 		----------
 		n_real : [...,...,...] 1d array of floats
-				 List of real part of the refractive index for different wavelengths.
+			List of real part of the refractive index for different wavelengths.
 		n_imag : [...,...,...] 1 array of floats
-				 List of imaginary part of the refractive index for different wavelengths.
+			List of imaginary part of the refractive index for different wavelengths.
 		
 		Returns
 		-------
 		None
-
 		"""
 		n_complex = []
 		for ii, n in enumerate(n_real):
@@ -87,8 +86,8 @@ class Layer:
 		Parameters
 		----------
 		refractive_filename : str
-							  Name of the .csv file in data/refractive_index_data
-							  from which to extract refractive index data.
+			Name of the .csv file in data/refractive_index_data
+			from which to extract refractive index data.
 
 		Returns
 		-------
@@ -97,8 +96,7 @@ class Layer:
 		Notes
 		----
 		The data from refractiveindex.info uses micrometers for wavelength units.
-		This is taken into account here.
-
+		This function assumes the file is left as is and converts to meters.
 		"""
 		with pkg_resources.path(refractive_index_data, refractive_filename) as params:
 			# pkg_resources will return a path, which includes the csv file we want to read
@@ -125,17 +123,25 @@ class Layer:
 			self.extinction_coeff = n_imag
 			self.set_complex_refractive(n_real, n_imag)
 
-	def make_datapoints(self, wavelengths: np.ndarray) -> None:
+	def make_datapoints(self, wavelengths: list) -> None:
 		"""
 		Makes a new set of data points from user-defined num_points and max/min wavelength,
 		and uses SciPy interpolation to match spacing and number of data points
 		for refractive index so that array lengths are consistent between layers.
 
+		SciPy's interpolate.interp1d uses x and y values to
+		generate a function whose argument uses interpolation to find the value of new points.
+
+			f(x) = y
+
+		See the documentation for details.
+		https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp1d.html#scipy.interpolate.interp1d
+
 		Parameters
 		----------
 		wavelengths: [..., ..., ...] 1d array
-					 List of user-defined wavelengths of light (in meters) 
-					 via max, min wavelength in yaml config file.
+			List of user-defined wavelengths of light (in meters) 
+			via max, min wavelength in yaml config file.
 	
 		Returns
 		-------
@@ -143,11 +149,18 @@ class Layer:
 
 		Notes
 		-----
-		Using interpolation to deal with different length and spacing of data
-		is probably not the best way to deal with this problem. It has worked so far,
-		but accuracy issues may arise. The fill_value is set to 'extrapolate', but this
-		does not imply the user should calculate for wavelengths outside of 
-		the range of values for a peer-reviewed dataset.
+		Interpolation of the refractive index passes unit testing for values in the middle of the new 
+		values for x (wavelengths) passed into the interpolation functions. Original refractive index
+		and extinction coefficients are usually given to about three decimal places. Interpolated
+		values sometimes preserve the original value to the full precision, but sometimes differ past 
+		the first or second demical place. This is something the user ought to be aware of.
+		The user should conduct independent tests of the accuracy of their own data.
+
+		Furthermore, data near the edges of x are unstable and deviate a few percent from the reference data.
+		When constructing new wavelength data using this function, DO NOT 
+		use wavelengths outside of any reference refractive index data that you provide.
+		The function will extrapolate that data instead of raising an error, and the
+		new refractive indices may be unphysical.
 
 		"""
 		num_points = len(wavelengths)
@@ -157,11 +170,11 @@ class Layer:
 			self.set_complex_refractive(self.refractive_index, self.extinction_coeff)
 			self.wavelengths = wavelengths
 		else:
-			new_n = interpolate.interp1d(self.wavelengths, self.refractive_index, fill_value='extrapolate')
-			new_K = interpolate.interp1d(self.wavelengths, self.extinction_coeff, fill_value='extrapolate')
+			f_n = interpolate.interp1d(self.wavelengths, self.refractive_index, fill_value='extrapolate')
+			f_K = interpolate.interp1d(self.wavelengths, self.extinction_coeff, fill_value='extrapolate')
 
-			self.refractive_index = new_n(wavelengths)
-			self.extinction_coeff = new_K(wavelengths)
+			self.refractive_index = f_n(wavelengths)
+			self.extinction_coeff = f_K(wavelengths)
 			self.set_complex_refractive(self.refractive_index, self.extinction_coeff)
 			self.wavelengths = wavelengths
 
@@ -173,16 +186,15 @@ class Layer:
 		Parameters
 		----------
 		n_complex : ndarray
-					Array of complex refractive indices for a set of wavelengths.
+			Array of complex refractive indices for a set of wavelengths.
 		
 		Returns
 		-------
 		None
-
 		"""
-		omega = 2 * np.pi * sc.c / self.wavelengths
-		self.kx = n_complex * omega / sc.c * np.cos(theta)
-		self.kz = n_complex * omega / sc.c * np.sin(theta)
+		omega = 2 * np.pi * const.c / self.wavelengths
+		self.kx = n_complex * omega / const.c * np.cos(theta)
+		self.kz = n_complex * omega / const.c * np.sin(theta)
 
 	def dynamical_matrix(self, n_complex: complex, theta: float, wave_type: str = 's-wave') -> list:
 		"""
@@ -191,17 +203,16 @@ class Layer:
 		Parameters
 		----------
 		n_complex : complex
-					Complex refractive index
+			Complex refractive index
 		theta : float
-				Incident angle of light with respect to normal in radians.
+			Incident angle of light with respect to normal in radians.
 		wave_type : str
-					Either s-wave or p-wave
+			Either s-wave or p-wave
 
 		Returns
 		-------
 		D : numpy ndarray
 			2x2 dynamical matrix.
-
 		"""
 		if wave_type == 's-wave':
 			return np.array([[1, 1], [n_complex * np.cos(theta),-n_complex * np.cos(theta)]])
@@ -220,7 +231,7 @@ class Layer:
 		Parameters
 		----------
 		kx : float
-			 Wavenumber associated with the incident wave.
+			Wavenumber associated with the incident wave.
 		d : float
 			Layer thickness in meters.
 
@@ -228,7 +239,6 @@ class Layer:
 		-------
 		P : numpy ndarray
 			Propagation matrix for the layer.
-
 		"""
 		return np.array([[np.exp(-1j * kx * d), 0.0], [0.0, np.exp(1j * kx * d)]])
 
@@ -265,8 +275,8 @@ class Layer:
 		for a single angle and wavelength, this is then still possible.
 
 		"""
-		omega = 2 * np.pi * sc.c / lmbda
-		kx = (n_complex * omega / sc.c) * np.cos(theta)
+		omega = 2 * np.pi * const.c / lmbda
+		kx = (n_complex * omega / const.c) * np.cos(theta)
 
 		D_i = self.dynamical_matrix(n_complex, theta, wave_type)
 		D_i_inv = np.linalg.inv(D_i)
@@ -314,7 +324,8 @@ class Structure:
 			 List of all layers in the structure.
 
 	"""
-	def __init__(self, layers=[], wavelengths=[], theta=[], wavevectors=[]):
+	def __init__(self, layers: list=[], wavelengths: list[float]=[1.e-5],
+				 theta: list[float]=[0.], wavevectors: list[float]=[2.-5]):
 		self.layers = layers
 		self.wavelengths = wavelengths
 		self.theta = theta
@@ -333,7 +344,6 @@ class Structure:
 		Returns
 		-------
 		None
-
 		"""
 		self.layers.append(layer)
 
@@ -349,28 +359,10 @@ class Structure:
 		Returns
 		-------
 		None
-
 		"""
 		self.layers.pop(layer_index)
 
-	def set_theta_radians(self, angles: list[float]) -> None:
-		"""
-		Set angles for incident light.
-		Converts from degrees to radians.
-
-		Parameters
-		----------
-		angles : list of floats
-				 List of angles (in degrees).
-		
-		Returns
-		-------
-		None
-
-		"""
-		self.theta = np.deg2rad(angles)
-
-	def load_yaml_struct(self, config_file: str) -> dict:
+	def load_yaml_config(self, config_file: str) -> dict:
 		"""
 		Load a structure from a yaml configuration file.
 		See the provided templates for how this file should be structured.
@@ -378,14 +370,14 @@ class Structure:
 		Parameters
 		----------
 		config_file : str
-					  The path to the yaml configuration file.
+			The path to the yaml configuration file.
 		
 		Returns
 		-------
 		structure : dict
-					A Python dictionary containing information about the structure,
-					including the parameters the incident light waves,
-					structure angle, and parameters for each layer.
+			A Python dictionary containing information about the structure,
+			including the parameters the incident light waves,
+			structure angle, and parameters for each layer.
  
 		"""
 		structure = dict()
@@ -401,20 +393,20 @@ class Structure:
 		Parameters
 		----------
 		config_file : str
-					  Path to .yaml file
+			Path to .yaml file
 		Returns
 		-------
 		None
 
 		"""
-		struct_dict = self.load_yaml_struct(config_file)
+		struct_dict = self.load_yaml_config(config_file)
 
 		num_layers = len(struct_dict['layers'])
-		min_wl = np.float64(struct_dict['min_wavelength'])
-		max_wl = np.float64(struct_dict['max_wavelength'])
+		min_wl = float(struct_dict['min_wavelength'])
+		max_wl = float(struct_dict['max_wavelength'])
 		num_wl = int(struct_dict['num_points'])
-		theta_i = np.float64(struct_dict['wave']['theta_i'])
-		theta_f = np.float64(struct_dict['wave']['theta_f'])
+		theta_i = float(struct_dict['wave']['theta_i'])
+		theta_f = float(struct_dict['wave']['theta_f'])
 		num_angles = int(struct_dict['wave']['num_angles'])
 		polarization = str(struct_dict['wave']['polarization'])
 
@@ -425,7 +417,7 @@ class Structure:
 			layer = struct_dict['layers'][layer_str]
 			layer_class = Layer()
 			layer_class.material = str(layer['material'])
-			layer_class.thickness = np.float64(layer['thickness'])
+			layer_class.thickness = float(layer['thickness'])
 
 			if "refractive_filename" in layer:
 				params = layer['refractive_filename']
@@ -437,20 +429,18 @@ class Structure:
 			elif "refractive_index" in layer:
 				layer_class.refractive_index = np.array([layer['refractive_index']])
 				layer_class.extinction_coeff = np.array([layer['extinction_coeff']])
+				layer_class.set_complex_refractive(layer_class.refractive_index, layer_class.extinction_coeff)
 				layer_class.wavelengths = np.array([layer['wavelength']])
 
 			else:
 				print("ERROR: Incorrect yaml config format. Reference default template.")
 
 			layers.append(layer_class)
-		
-		self.layers = layers
 
+		self.layers = layers
 		print('Initialize Structure...')
 		self.initialize_struct(theta_i, theta_f, num_angles, min_wl, max_wl, num_wl, polarization)
 		print('Done')
-
-		self.layers = layers
 
 	def initialize_struct(self, theta_i: float, theta_f: float, num_angles: int, min_wl: float, max_wl: float, num_wl: int, wave_type: str) -> None:
 		"""
@@ -482,39 +472,10 @@ class Structure:
 			layer.calculate_wavenumbers(layer.complex_refractive, theta_i)
 			layer.calculate_all_transfer_matrices(theta_i, wave_type)
 
-	def calculate_transfer_matrix(self, n_complex: complex, lmbda: float, theta: float, wave_type: str) -> np.ndarray:
-		"""
-		NOT FINISHED.
-
-		Calculates transfer matrix for the entire structure
-		for a single frequency of light.
-
-		Parameters
-		----------
-
-		Returns
-		-------
-		M : 2x2 numpy array
-			Transfer matrix for the entire multilayered structure.
-
-		"""
-		M_tmp = np.identity(2)
-		D_i_first, P_i_first, D_i_inv_first, M_i_first = self.layers[0].calculate_transfer_matrix(n_complex, lmbda, theta, wave_type)
-		D_i_last, P_i_last, D_i_inv_last, M_i_last = self.layers[-1].calculate_transfer_matrix(n_complex, lmbda, theta, wave_type)
-
-		for i in range(len(self.layers))[1:-1:-1]:
-
-			D_i, P_i, D_i_inv, M_i = self.layers[i].calculate_transfer_matrix(n_complex, lmbda, theta, wave_type)
-			M_tmp = np.matmul(M_i, M_tmp)
-
-		M = np.linalg.multi_dot([D_i_inv_first, M_tmp, D_i_last])
-
-		return M
-
-	def calculate_t_r(self, M: np.ndarray):
+	def calculate_t_r(self, M: list):
 		"""
 		Calculate transmittance and reflectance coefficients and
-		transmission and reflectance.
+		transmission and reflectance for a single layer.
 
 		Parameters
 		----------
@@ -536,6 +497,32 @@ class Structure:
 		T = np.real(np.linalg.det(M) * np.abs(t)**2)
 
 		return T, R
+
+	def calculate_all_t_r(self, transfer_matrices: list) -> list[float]:
+		"""
+		Calculate reflectance and transmittance for all stored transfer matrices,
+		essentially constructing a transmittance and reflectance spectrum.
+
+		Parameters
+		----------
+		None
+
+		Returns
+		-------
+		T_spectrum : 1d numpy array
+			Array of transmittance values at each stored wavelength.
+		R_spectrum : 1d numpy array
+			Array of reflectance values at each stored wavelength.
+		"""
+		T_spectrum = []
+		R_spectrum = []
+
+		for m in transfer_matrices:
+			T_i, R_i = self.calculate_t_r(m)
+			T_spectrum.append(T_i)
+			R_spectrum.append(R_i)
+
+		return np.array(T_spectrum), np.array(R_spectrum)
 
 	def calculate_layer_matrices(self, theta: float, wave_type: str) -> None:
 		"""
@@ -569,21 +556,20 @@ class Structure:
 		Parameters
 		----------
 		theta : float
-				Angle of incident light.
+			Angle of incident light.
 		wave_type : str
-					Light polarization, either 's-wave' or 'p-wave'.
+			Light polarization, either 's-wave' or 'p-wave'.
 		
 		Returns
 		-------
 		None
-
 		"""
 		self.calculate_layer_matrices(theta, wave_type)
 
 		transfer_matrices = []
 		for i in range(len(self.wavelengths)):
 
-			M_build = np.identity(2, dtype=np.complex128)
+			M_build = np.identity(2, dtype=complex)
 			D_0, P_0, D_0_inv, M_0 = self.layers[0].transfer_matrices[i]
 			D_f, P_f, D_f_inv, M_f = self.layers[-1].transfer_matrices[i]
 
@@ -597,33 +583,6 @@ class Structure:
 
 		return transfer_matrices
 
-	def calculate_all_t_r(self, transfer_matrices: list) -> list[float]:
-		"""
-		Calculate reflectance and transmittance for all stored transfer matrices,
-		essentially constructing a transmittance and reflectance spectrum.
-
-		Parameters
-		----------
-		None
-
-		Returns
-		-------
-		T_spectrum : 1d ndarray
-					 Array of transmittance values at each stored wavelength.
-		R_spectrum : 1d ndarray
-					 Array of reflectance values at each stored wavelength.
-
-		"""
-		T_spectrum = []
-		R_spectrum = []
-
-		for m in transfer_matrices:
-			T_i, R_i = self.calculate_t_r(m)
-			T_spectrum.append(T_i)
-			R_spectrum.append(R_i)
-
-		return np.array(T_spectrum), np.array(R_spectrum)
-
 	def one_job(self, theta: float, wave_type: str) -> list:
 		"""
 		Calculates transfer matrix, transmittance, and reflectance
@@ -633,16 +592,15 @@ class Structure:
 		Parameters
 		----------
 		theta : float
-				Incidence angle.
+			Incidence angle.
 		wave_type : str
-					Polarization, either 's-wave' or 'p-wave'.
+			Polarization, either 's-wave' or 'p-wave'.
 		
 		Returns
 		-------
 		T_angle_resolved : list of list of floats
-						   List (for each angle) of list (for each wavelength) 
-						   of transmittance values.
-
+			List (for each angle) of list (for each wavelength) 
+			of transmittance values.
 		"""
 		M_i = self.calculate_all_transfer_matrices(theta, wave_type)
 		T_i, R_i = self.calculate_all_t_r(M_i)
@@ -657,14 +615,13 @@ class Structure:
 		Parameters
 		----------
 		wave_type : str
-					Polarization, either 's-wave' or 'p-wave'.
+			Polarization, either 's-wave' or 'p-wave'.
 
 		Returns
 		-------
 		M_angle_resolved : list of lists
-						   List of list of transmittance and reflectance values
-						   for each light incident angle.
-
+			List of list of transmittance and reflectance values
+			for each light incident angle.
 		"""
 		num_cores = multiprocessing.cpu_count()
 		pool = multiprocessing.Pool(num_cores)
@@ -693,7 +650,6 @@ class Structure:
 		Returns
 		-------
 		None
-
 		"""
 		print('Structure Configuration')
 		for i, layer in enumerate(self.layers):
@@ -749,20 +705,20 @@ def write_tmm_results(theta: float, wavelengths: list[float], trans: list[float]
 	Parameters
 	----------
 	theta : float
-			Angle (in degrees) associated with the incidence angle
-			supplied for this calculation.
+		Angle (in degrees) associated with the incidence angle
+		supplied for this calculation.
 	wavelengths : list of floats
-				  List of wavelengths to write to file.
+		List of wavelengths to write to file.
 	trans : list of floats
-			List of transmittance data.
+		List of transmittance data.
 	refl : list of floats
-		   List of reflectance data.
+		List of reflectance data.
 	output_dir : str
+		Path to directory to save transfer matrix results.
 
 	Returns
 	-------
 	None
-	
 	"""
 	file_name = str(theta) + 'deg_.csv'
 	output_file = os.path.join(output_dir, file_name)
@@ -855,9 +811,8 @@ def main(args):
 		logger.info("Incident wave is s-wave.")
 	else:
 		logger.info("Incident wave must be 'p-wave' or 's-wave'.")
+		sys.exit()
 
-	
-	
 	s = Structure()
 	s.load_struct_from_config(args.structure)
 	logger.info("Start simulation")
@@ -874,11 +829,8 @@ def main(args):
 	for i, theta in enumerate(results):
 		t_results = theta[0]
 		r_results = theta[1]
-
 		write_tmm_results(s.theta[i], s.wavelengths, t_results, r_results, out_path)
 	print("Wrote results to {}".format(out_path))
-	
-
 
 
 if __name__ == '__main__':
