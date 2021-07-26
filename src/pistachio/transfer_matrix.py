@@ -438,9 +438,8 @@ class Structure:
 			layers.append(layer_class)
 
 		self.layers = layers
-		print('Initialize Structure...')
+		print('Initializing structure...')
 		self.initialize_struct(theta_i, theta_f, num_angles, min_wl, max_wl, num_wl, polarization)
-		print('Done')
 
 	def initialize_struct(self, theta_i: float, theta_f: float, num_angles: int, min_wl: float, max_wl: float, num_wl: int, wave_type: str) -> None:
 		"""
