@@ -99,8 +99,6 @@ class Layer:
 		This function assumes the file is left as is and converts to meters.
 		"""
 		with pkg_resources.path(refractive_index_data, refractive_filename) as params:
-			# pkg_resources will return a path, which includes the csv file we want to read
-			# CAUTION: make sure this data is in SI units (i.e. 5e-9 instead of 5 nm)
 			params = os.path.abspath(params)
 
 			wavelen = []
