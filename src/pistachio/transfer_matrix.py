@@ -10,7 +10,6 @@ import argparse
 import csv
 import importlib.resources as pkg_resources
 import logging
-import matplotlib.gridspec as gridspec
 import multiprocessing
 import numpy as np
 import os
@@ -73,10 +72,10 @@ class Layer:
 		None
 		"""
 		n_complex = []
-		for ii, n in enumerate(n_real):
+		for ii in range(len(n_real)):
 			n_complex.append(n_real[ii] + 1j * n_imag[ii])
 		self.complex_refractive = np.array(n_complex)
-		
+
 	def get_data_from_csv(self, refractive_filename: str) -> None:
 		"""
 		Extracts refractive index data associated with a layer material 
@@ -250,19 +249,19 @@ class Layer:
 		Parameters
 		----------
 		n_complex : complex number
-					Complex refractive index for the given material and input wave.
+			Complex refractive index for the given material and input wave.
 		lmbda : float
-				Wavelength of incoming light.
+			Wavelength of incoming light.
 		theta : float
-				Angle of incident light.
+			Angle of incident light.
 		wave_type : str
-					Polarization, either 's-wave' or 'p-wave'.
+			Polarization, either 's-wave' or 'p-wave'.
 
 		Returns
 		-------
 		matrices : list
-				   List containing dynamical matrix, propagation matrix,
-				   inverse dynamical matrix, and layer transfer matrix.
+			List containing dynamical matrix, propagation matrix,
+			inverse dynamical matrix, and layer transfer matrix.
 
 		Notes
 		-----
@@ -290,9 +289,9 @@ class Layer:
 		Parameters
 		----------
 		theta : float
-				Incident angle.
+			Incident angle.
 		wave_type : str
-					's-wave' or 'p-wave' incident light polarization.
+			's-wave' or 'p-wave' incident light polarization.
 
 		Returns
 		-------
@@ -319,7 +318,7 @@ class Structure:
 	Attributes
 	----------
 	layers : [..., ..., ...] list of layer objects
-			 List of all layers in the structure.
+		List of all layers in the structure.
 
 	"""
 	def __init__(self, layers: list=[], wavelengths: list[float]=[1.e-5],
@@ -337,7 +336,7 @@ class Structure:
 		Parameters
 		----------
 		layer : layer object
-				An instance of the Layer class.
+			An instance of the Layer class.
 
 		Returns
 		-------
@@ -352,7 +351,7 @@ class Structure:
 		Parameters
 		----------
 		layer_index : int
-					  The index of an existing layer.
+			The index of an existing layer.
 		
 		Returns
 		-------
@@ -450,11 +449,11 @@ class Structure:
 		Parameters
 		----------
 		min_wl : float
-				 Starting (smallest) wavelength (in meters).
+			Starting (smallest) wavelength (in meters).
 		max_wl : float
-				 Ending (largest) wavelength (in meters).
+			Ending (largest) wavelength (in meters).
 		num_points : int
-					 Number of data points to generate between max and min wavelengths
+			Number of data points to generate between max and min wavelengths
 
 		Returns
 		-------
@@ -529,9 +528,9 @@ class Structure:
 		Parameters
 		----------
 		theta : float
-				Incident light angle.
+			Incident light angle.
 		wave_type : str
-					Light polarization, 's-wave' or 'p-wave'.
+			Light polarization, 's-wave' or 'p-wave'.
 
 		Returns
 		-------
@@ -567,11 +566,11 @@ class Structure:
 		for i in range(len(self.wavelengths)):
 
 			M_build = np.identity(2, dtype=complex)
-			D_0, P_0, D_0_inv, M_0 = self.layers[0].transfer_matrices[i]
-			D_f, P_f, D_f_inv, M_f = self.layers[-1].transfer_matrices[i]
+			D_0_inv = self.layers[0].transfer_matrices[i][2]
+			D_f = self.layers[-1].transfer_matrices[i][0]
 
 			for j in range(len(self.layers))[-2:0:-1]:
-				D_j, P_j, D_j_inv, M_j = self.layers[j].transfer_matrices[i]
+				M_j = self.layers[j].transfer_matrices[i][-1]
 				M_build = np.matmul(M_j, M_build)
 
 			M = np.linalg.multi_dot([D_0_inv, M_build, D_f])
@@ -665,9 +664,9 @@ class Structure:
 		Parameters
 		----------
 		out_path : str
-				  Path at which simulation directory will be created.
+			Path at which simulation directory will be created.
 		sim_name : str
-				   Name of simulation directory.
+			Name of simulation directory.
 
 		Returns
 		-------

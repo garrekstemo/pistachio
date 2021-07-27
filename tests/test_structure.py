@@ -63,15 +63,6 @@ def test_radians_after_initialize_from_yaml():
     testing.assert_array_less(s_from_yaml.theta, test_theta)
 
 
-def test_calculate_transfer_matrix():
-    # Test the transfer matrix for the entire multi-layered structure.
-    lmbda = 1.e-5
-    thickness = 3 * lmbda
-    s = manual_structure(3, lmbda, thickness)
-    M_tot = s.calculate_transfer_matrix(1.0+0.j, lmbda, 0., 's-wave')
-    np.testing.assert_allclose(M_tot, np.identity(2))
-
-
 def test_calculate_t_r():
     M = np.array([[1.0 + 0.j, 0.0 + 0.j],
               [0.0 + 0.j,  1.0 + 0.j]])
