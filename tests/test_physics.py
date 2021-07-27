@@ -27,13 +27,13 @@ for i in range(num_layers):
 test_structure = tm.Structure(layers=layers, wavelengths=[lmbda], theta=[0.])
 
 
-def test_t_r_conservation():
-    # No absorption
-    M = test_structure.calculate_transfer_matrix(1. + 0.j, lmbda, 0., 's-wave')
-    T, R = test_structure.calculate_t_r(M)
+# def test_t_r_conservation():
+#     # No absorption
+#     M = test_structure.calculate_transfer_matrix(1. + 0.j, lmbda, 0., 's-wave')
+#     T, R = test_structure.calculate_t_r(M)
 
-    M_fp = test_fp.calculate_transfer_matrix(1. + 0.j, lmbda, 0., 's-wave')
-    T_fp, R_fp = test_fp.calculate_t_r(M_fp)
+#     M_fp = test_fp.calculate_transfer_matrix(1. + 0.j, lmbda, 0., 's-wave')
+#     T_fp, R_fp = test_fp.calculate_t_r(M_fp)
 
-    assert (1 - T - R == 0.)
-    assert (1 - T_fp - R_fp == 0.)
+#     assert (1 - T - R == 0.)
+#     assert (1 - T_fp - R_fp == 0.)
