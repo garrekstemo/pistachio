@@ -43,15 +43,14 @@ class Layer:
 	extinction_coeff : [..., ..., ...] 1d array
 		Imaginary part of the complex refractive index.
 	"""
-	def __init__(self, material: str='Air', thickness: float=1.0e-3, wavelengths: list=[1.0e-5],
-				 n_real: list=[1.0003], n_imag: list=[0.0], num_points: int=100):
+	def __init__(self, material: str='Air', thickness: float=1.0e-3, num_points: int=100):
 
 		self.material = material
 		self.thickness = thickness
-		self.wavelengths = wavelengths
-		self.refractive_index = n_real
-		self.extinction_coeff = n_imag
-		self.set_complex_refractive(n_real, n_imag)
+		self.wavelengths = []
+		self.refractive_index = []
+		self.extinction_coeff = []
+		self.set_complex_refractive(self.refractive_index, self.extinction_coeff)
 		self.kx = []
 		self.kz = []
 		self.transfer_matrices = []
@@ -321,12 +320,11 @@ class Structure:
 		List of all layers in the structure.
 
 	"""
-	def __init__(self, layers: list=[], wavelengths: list[float]=[1.e-5],
-				 theta: list[float]=[0.], wavevectors: list[float]=[2.-5]):
-		self.layers = layers
-		self.wavelengths = wavelengths
-		self.theta = theta
-		self.wavevectors = wavevectors
+	def __init__(self):
+		self.layers = []
+		self.theta = []
+		self.wavelengths = []
+		self.wavevectors = []
 		self.transfer_matrices = []
 
 	def add_layer(self, layer: object) -> None:
