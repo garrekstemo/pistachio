@@ -37,35 +37,35 @@ num_points: 10000
 min_wavelength: 1.6e-6
 max_wavelength: 4.0e-6
 wave:
-	polarization: "s-wave"
-	theta_i: 0.0
-	theta_f: 30.0
-	num_angles: 31
-	A0: 1
-	B0: 0
+    polarization: "s-wave"
+    theta_i: 0.0
+    theta_f: 30.0
+    num_angles: 31
+    A0: 1
+    B0: 0
 layers:
-	layer0:
-	    material: CaF2
-	    thickness: 0.
-	    refractive_filename: "layer0.csv"
+    layer0:
+        material: CaF2
+        thickness: 0.
+        refractive_filename: "layer0.csv"
     layer1:
-	    material: Au
-	    thickness: 2.e-8
-	    refractive_filename: "layer1.csv"
+        material: Au
+        thickness: 2.e-8
+        refractive_filename: "layer1.csv"
     layer2:
-	    material: Air
-	    thickness: 1.e-5
-	    wavelength: 1.e-6
-	    refractive_index: 1.0003
-	    extinction_coeff: 0.0
-	layer3:
-	    material: Au
-	    thickness: 2.e-8
-	    refractive_filename: "layer1.csv"
-	layer4:
-		material: CaF2
-		thickness: 0.
-		refractive_filename: "layer0.csv"
+        material: Air
+        thickness: 1.e-5
+        wavelength: 1.e-6
+        refractive_index: 1.0003
+        extinction_coeff: 0.0
+    layer3:
+        material: Au
+        thickness: 2.e-8
+        refractive_filename: "layer1.csv"
+    layer4:
+        material: CaF2
+        thickness: 0.
+        refractive_filename: "layer0.csv"
 ```
 
 The `refractive_filename` specifies the path where refractive index data is stored, which must be saved as a .csv file with wavelength, refractive index, and extinction coefficient columns.
