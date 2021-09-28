@@ -116,7 +116,7 @@ class Layer:
 			self.wavelengths = wavelen
 			self.refractive_index = n_real
 			self.extinction_coeff = n_imag
-			self.set_complex_refractive(n_real, n_imag)
+			self.set_complex_refractive(n_real, -n_imag)
 
 	def make_datapoints(self, wavelengths: list) -> None:
 		"""
