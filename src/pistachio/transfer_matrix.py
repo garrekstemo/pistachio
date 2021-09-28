@@ -1,4 +1,3 @@
-
 """
 Name: Transfer Matrix
 Author: Garrek Stemo
@@ -236,7 +235,7 @@ class Layer:
 		P : numpy ndarray
 			Propagation matrix for the layer.
 		"""
-		return np.array([[np.exp(-1j * kx * d), 0.0], [0.0, np.exp(1j * kx * d)]])
+		return np.array([[np.exp(1j * kx * d), 0.0], [0.0, np.exp(-1j * kx * d)]])
 
 	def calculate_transfer_matrix(self, n_complex: complex, lmbda: float, theta: float, wave_type: str) -> list:
 		""" 
