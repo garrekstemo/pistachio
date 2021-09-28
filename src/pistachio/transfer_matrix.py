@@ -54,7 +54,7 @@ class Layer:
 		self.kz = []
 		self.transfer_matrices = []
 
-	def set_complex_refractive(self, n_real: list[float] = None, n_imag: list[float] = None) -> None:
+	def set_complex_refractive(self, n_real=None, n_imag=None):
 		"""
 		Sets the complex refractive index.
 
@@ -74,7 +74,7 @@ class Layer:
 			n_complex.append(n_real[ii] + 1j * n_imag[ii])
 		self.complex_refractive = np.array(n_complex)
 
-	def get_data_from_csv(self, refractive_filename: str) -> None:
+	def get_data_from_csv(self, refractive_filename):
 		"""
 		Extracts refractive index data associated with a layer material 
 		from file downloaded from refractiveindex.info and sets wavelength,
@@ -116,9 +116,9 @@ class Layer:
 			self.wavelengths = wavelen
 			self.refractive_index = n_real
 			self.extinction_coeff = n_imag
-			self.set_complex_refractive(n_real, -n_imag)
+			self.set_complex_refractive(n_real, n_imag)
 
-	def make_datapoints(self, wavelengths: list) -> None:
+	def make_datapoints(self, wavelengths):
 		"""
 		Makes a new set of data points from user-defined num_points and max/min wavelength,
 		and uses SciPy interpolation to match spacing and number of data points
@@ -173,7 +173,7 @@ class Layer:
 			self.set_complex_refractive(self.refractive_index, self.extinction_coeff)
 			self.wavelengths = wavelengths
 
-	def calculate_wavenumbers(self, n_complex: list, theta: float=0.0) -> None:
+	def calculate_wavenumbers(self, n_complex, theta=0.0):
 		"""
 		Calculate wavenumbers for the dielectric for the given
 		angular frequency and angle.
@@ -191,7 +191,7 @@ class Layer:
 		self.kx = n_complex * omega / const.c * np.cos(theta)
 		self.kz = n_complex * omega / const.c * np.sin(theta)
 
-	def dynamical_matrix(self, n_complex: complex, theta: float, wave_type: str = 's-wave') -> list:
+	def dynamical_matrix(self, n_complex, theta, wave_type= 's-wave'):
 		"""
 		Calculates the dynamical matrix for a layer.
 
@@ -218,7 +218,7 @@ class Layer:
 		else:
 			print("Must specify 's-wave' or 'p-wave'.")
 
-	def propagation_matrix(self, kx: float, d: float) -> np.ndarray:
+	def propagation_matrix(self, kx, d):
 		"""
 		Calculates the propagation matrix through a layer
 		(accumulation of phase for a plane wave propagating through homogeneous medium).
@@ -237,7 +237,7 @@ class Layer:
 		"""
 		return np.array([[np.exp(1j * kx * d), 0.0], [0.0, np.exp(-1j * kx * d)]])
 
-	def calculate_transfer_matrix(self, n_complex: complex, lmbda: float, theta: float, wave_type: str) -> list:
+	def calculate_transfer_matrix(self, n_complex, lmbda, theta, wave_type):
 		""" 
 		Performs transfer matrix for this layer for a particular
 		frequency and incidence angle of light.
@@ -280,7 +280,7 @@ class Layer:
 
 		return [D_i, P_i, D_i_inv, M_i]
 
-	def calculate_all_transfer_matrices(self, theta: float, wave_type: str) -> None:
+	def calculate_all_transfer_matrices(self, theta, wave_type):
 		"""
 		Calculate transfer matrices for this layer for every stored wavelength.
 
@@ -326,7 +326,7 @@ class Structure:
 		self.wavevectors = []
 		self.transfer_matrices = []
 
-	def add_layer(self, layer: object) -> None:
+	def add_layer(self, layer):
 		"""
 		Append a new layer to the end of the list of layers.
 
@@ -341,7 +341,7 @@ class Structure:
 		"""
 		self.layers.append(layer)
 
-	def delete_layer(self, layer_index: int) -> None:
+	def delete_layer(self, layer_index):
 		"""
 		Remove a layer from the structure according to the given index.
 
@@ -356,7 +356,7 @@ class Structure:
 		"""
 		self.layers.pop(layer_index)
 
-	def load_yaml_config(self, config_file: str) -> dict:
+	def load_yaml_config(self, config_file):
 		"""
 		Load a structure from a yaml configuration file.
 		See the provided templates for how this file should be structured.
@@ -379,7 +379,7 @@ class Structure:
 			structure = yaml.load(yml)
 		return structure
 
-	def load_struct_from_config(self, config_file: str) -> None:
+	def load_struct_from_config(self, config_file):
 		"""
 		Load a structure stored in a .yaml config file and assigns layers
 		as attributes of the structure.
@@ -435,7 +435,7 @@ class Structure:
 		print('Initializing structure...')
 		self.initialize_struct(theta_i, theta_f, num_angles, min_wl, max_wl, num_wl, polarization)
 
-	def initialize_struct(self, theta_i: float, theta_f: float, num_angles: int, min_wl: float, max_wl: float, num_wl: int, wave_type: str) -> None:
+	def initialize_struct(self, theta_i, theta_f, num_angles, min_wl, max_wl, num_wl, wave_type):
 		"""
 		Initialize a multi-layered structure, including initial calculations
 		and setting the number of data points for each layer.
@@ -465,7 +465,7 @@ class Structure:
 			layer.calculate_wavenumbers(layer.complex_refractive, theta_i)
 			layer.calculate_all_transfer_matrices(theta_i, wave_type)
 
-	def calculate_t_r(self, M: list):
+	def calculate_t_r(self, M):
 		"""
 		Calculate transmittance and reflectance coefficients and
 		transmission and reflectance for a single layer.
@@ -491,7 +491,7 @@ class Structure:
 
 		return T, R
 
-	def calculate_all_t_r(self, transfer_matrices: list) -> list[float]:
+	def calculate_all_t_r(self, transfer_matrices):
 		"""
 		Calculate reflectance and transmittance for all stored transfer matrices,
 		essentially constructing a transmittance and reflectance spectrum.
@@ -517,7 +517,7 @@ class Structure:
 
 		return np.array(T_spectrum), np.array(R_spectrum)
 
-	def calculate_layer_matrices(self, theta: float, wave_type: str) -> None:
+	def calculate_layer_matrices(self, theta, wave_type):
 		"""
 		Calculates the transfer matrices for each layer in the structure
 		for the available wavelengths.
@@ -537,7 +537,7 @@ class Structure:
 		for l in self.layers:
 			l.calculate_all_transfer_matrices(theta, wave_type)
 
-	def calculate_all_transfer_matrices(self, theta: float, wave_type: str) -> list:
+	def calculate_all_transfer_matrices(self, theta, wave_type):
 		"""
 		Calculate transfer matrices for every stored wavelength
 		for the entire structure. Make sure the data are treated
@@ -576,7 +576,7 @@ class Structure:
 
 		return transfer_matrices
 
-	def one_job(self, theta: float, wave_type: str) -> list:
+	def one_job(self, theta, wave_type):
 		"""
 		Calculates transfer matrix, transmittance, and reflectance
 		for a single angle. This is part of the angle-resolved calculation
@@ -599,7 +599,7 @@ class Structure:
 		T_i, R_i = self.calculate_all_t_r(M_i)
 		return T_i, R_i
 
-	def angle_resolved_spectra(self, wave_type: str) -> list:
+	def angle_resolved_spectra(self, wave_type):
 		"""
 		Calculates transfer matrix for each provided incidence angle.
 		Uses Python's multiprocess module to speed up calculation (useful
@@ -632,7 +632,7 @@ class Structure:
 
 		return results
 
-	def print_structure(self) -> None:
+	def print_structure(self):
 		"""
 		Prints the current structure configuration.
 
@@ -650,7 +650,7 @@ class Structure:
 			print("Layer {} :".format(i), layer.material,
 				  "| d = " + str(int(layer.thickness * 10**9)) + " nm"
 			)
-	def make_sim_dir(self, out_path: str, sim_name: str=None) -> None:
+	def make_sim_dir(self, out_path):
 		"""
 		Make the name of the output directory for 
 		angle-resolved transfer matrix simulation.
@@ -689,7 +689,7 @@ class Structure:
 		return sim_path
 
 
-def write_tmm_results(theta: float, wavelengths: list[float], trans: list[float], refl: list[float], output_dir: str) -> None:
+def write_tmm_results(theta, wavelengths, trans, refl, output_dir):
 	"""
 	Writes transmission, reflectance, results for all
 	wavelengths specified in transfer matrix calculation to a csv file
