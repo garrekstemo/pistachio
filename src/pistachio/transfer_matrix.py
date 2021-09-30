@@ -8,7 +8,6 @@ Affiliation: Nara Institute of Science and Technology
 import argparse
 import csv
 import importlib.resources as pkg_resources
-import logging
 import multiprocessing
 import numpy as np
 import os
@@ -22,10 +21,6 @@ from tqdm import tqdm
 from pistachio.data import refractive_index_data
 
 yaml = YAML()
-# FORMATTER = logging.Formatter("%(asctime)s — %(name)s — %(levelname)s - %(message)s")
-FORMATTER = logging.Formatter("%(message)s")
-LOG_FILE = 'transfer_matrix.log'
-
 
 class Layer:
 	"""
@@ -42,7 +37,7 @@ class Layer:
 	extinction_coeff : [..., ..., ...] 1d array
 		Imaginary part of the complex refractive index.
 	"""
-	def __init__(self, material: str='Air', thickness: float=1.0e-3, num_points: int=100):
+	def __init__(self, material="Air", thickness=1.0e-3, num_points=100):
 
 		self.material = material
 		self.thickness = thickness
@@ -106,16 +101,17 @@ class Layer:
 				csvreader = csv.reader(csv_file)
 				next(csvreader, None)
 				for row in csvreader:
-					wavelen.append(float(row[0]) * 10**-6)
+					# wavelen.append(float(row[0]) * 10**-6)
+					wavelen.append(float(row[0]))
 					n_real.append(float(row[1]))
 					try:
 						n_imag.append(float(row[2]))
 					except IndexError:
 						n_imag.append(0.0)
 
-			self.wavelengths = wavelen
-			self.refractive_index = n_real
-			self.extinction_coeff = n_imag
+			self.wavelengths = np.array(wavelen)
+			self.refractive_index = np.array(n_real)
+			self.extinction_coeff = np.array(n_imag)
 			self.set_complex_refractive(n_real, n_imag)
 
 	def make_datapoints(self, wavelengths):
@@ -191,7 +187,7 @@ class Layer:
 		self.kx = n_complex * omega / const.c * np.cos(theta)
 		self.kz = n_complex * omega / const.c * np.sin(theta)
 
-	def dynamical_matrix(self, n_complex, theta, wave_type= 's-wave'):
+	def dynamical_matrix(self, n_complex, theta, wave_type="s-wave"):
 		"""
 		Calculates the dynamical matrix for a layer.
 
@@ -209,10 +205,10 @@ class Layer:
 		D : numpy ndarray
 			2x2 dynamical matrix.
 		"""
-		if wave_type == 's-wave':
-			return np.array([[1, 1], [n_complex * np.cos(theta),-n_complex * np.cos(theta)]])
+		if wave_type == "s-wave":
+			return np.array([[1, 1], [n_complex * np.cos(theta), -n_complex * np.cos(theta)]])
 		
-		elif wave_type == 'p-wave':
+		elif wave_type == "p-wave":
 			return np.array([[np.cos(theta), np.cos(theta)], [n_complex, -n_complex]])
 
 		else:
@@ -235,7 +231,7 @@ class Layer:
 		P : numpy ndarray
 			Propagation matrix for the layer.
 		"""
-		return np.array([[np.exp(1j * kx * d), 0.0], [0.0, np.exp(-1j * kx * d)]])
+		return np.array([[np.exp(-1j * kx * d), 0.0], [0.0, np.exp(1j * kx * d)]])
 
 	def calculate_transfer_matrix(self, n_complex, lmbda, theta, wave_type):
 		""" 
@@ -432,7 +428,7 @@ class Structure:
 			layers.append(layer_class)
 
 		self.layers = layers
-		print('Initializing structure...')
+		print("Initializing structure...")
 		self.initialize_struct(theta_i, theta_f, num_angles, min_wl, max_wl, num_wl, polarization)
 
 	def initialize_struct(self, theta_i, theta_f, num_angles, min_wl, max_wl, num_wl, wave_type):
@@ -557,15 +553,14 @@ class Structure:
 		-------
 		None
 		"""
-		self.calculate_layer_matrices(theta, wave_type)
+		# self.calculate_layer_matrices(theta, wave_type)
 
 		transfer_matrices = []
 		for i in range(len(self.wavelengths)):
 
-			M_build = np.identity(2, dtype=complex)
+			M_build = np.identity(2)
 			D_0_inv = self.layers[0].transfer_matrices[i][2]
 			D_f = self.layers[-1].transfer_matrices[i][0]
-
 			for j in range(len(self.layers))[-2:0:-1]:
 				M_j = self.layers[j].transfer_matrices[i][-1]
 				M_build = np.matmul(M_j, M_build)
@@ -648,7 +643,7 @@ class Structure:
 		for i, layer in enumerate(self.layers):
 
 			print("Layer {} :".format(i), layer.material,
-				  "| d = " + str(int(layer.thickness * 10**9)) + " nm"
+				  "| d = " + str(int(layer.thickness * 10**3)) + " nm"
 			)
 	def make_sim_dir(self, out_path):
 		"""
@@ -757,31 +752,13 @@ def transmission_matrix(r_ij, t_ij):
 # ========= ========= ========= ========= ========== ========= ======== #
 
 
-def get_console_handler():
-	console_handler = logging.StreamHandler(sys.stdout)
-	console_handler.setFormatter(FORMATTER)
-	return console_handler
-
-def get_logger(args, logger_name):
-	"""Configure logging."""
-	logger = logging.getLogger(logger_name)
-# 	logger.setLevel(logging.DEBUG)
-	if args.debug:
-		logger.setLevel(logging.DEBUG)
-	else:
-		logger.setLevel(logging.INFO)
-	logger.addHandler(get_console_handler())
-	logger.propagate = False
-	return logger
-
 def parse_arguments():
 	parser = argparse.ArgumentParser()
 	structure_help = "Path for a yaml file from config_files describing a multilayered structure."
 	output_help = "Directory for transfer matrix results."
 	pwave_help = "Boolean. Incident wave is p-wave."
-	swave_help = "Boolean. Incident s-wave."
+	swave_help = "Boolean. Incident was is s-wave."
 
-	parser.add_argument('--debug', action='store_true', help="Enable debugging.")
 	parser.add_argument("structure", help=structure_help)
 	parser.add_argument("output", help=output_help)
 	parser.add_argument('-p', '--pwave', help=pwave_help, action='store_true')
@@ -792,28 +769,24 @@ def parse_arguments():
 
 def main(args):
 
-	logger.debug("Debugging enabled")
-	logger.info("Loading structure parameters from {}".format(args.structure))
+	print("Loading structure parameters from {}".format(args.structure))
 
-	wave_type = 'None'
+	wave_type = "None"
 	if args.pwave:
-		wave_type = 'p-wave'
-		logger.info("Incident wave is p-wave.")
+		wave_type = "p-wave"
 	elif args.swave:
-		wave_type = 's-wave'
-		logger.info("Incident wave is s-wave.")
+		wave_type = "s-wave"
 	else:
-		logger.info("Incident wave must be 'p-wave' or 's-wave'.")
 		sys.exit()
 
 	s = Structure()
 	s.load_struct_from_config(args.structure)
-	logger.info("Start simulation")
+
 	start_time = time.time()
 	results = s.angle_resolved_spectra(wave_type)
 	end_time = time.time()
 	elapsed_time = np.round(end_time - start_time, 4)
-	logger.info('Calculation time: {} seconds'.format(elapsed_time))
+	print("Calculation time: {} seconds".format(elapsed_time))
 
 	out_path = s.make_sim_dir(args.output)
 	if not os.path.exists(out_path):
@@ -826,8 +799,7 @@ def main(args):
 	print("Wrote results to {}".format(out_path))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
 	args = parse_arguments()
-	logger = get_logger(args, __name__)
 	main(args)

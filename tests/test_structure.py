@@ -9,31 +9,29 @@ from pistachio import transfer_matrix as tm
 from pistachio import default
 
 
-def manual_structure(num_layers, lmbda, thickness):
-
-    layers = []
+def make_structure(num_layers, lmbda, thickness):
+    structure = tm.Structure()
     for i in range(num_layers):
         material = "Material_" + str(i)
-        test_layer = tm.Layer(material=material, thickness=thickness, wavelengths=[lmbda],
-                        n_real=[1.0], n_imag=[0.j], num_points=1)
-        layers.append(test_layer)
-
-    return tm.Structure(layers=layers)
+        test_layer = tm.Layer(material=material, thickness=thickness)
+        test_layer.wavelengths = [lmbda]
+        structure.add_layer(test_layer)
+    return structure
 
 
 def test_add_layer():
     lmbda = 1.e-5
     thickness = 3 * lmbda
-    new_layer = tm.Layer(material="New Material", thickness=1.e-6, wavelengths=[lmbda])
-    s = manual_structure(3, lmbda, thickness)
+    new_layer = tm.Layer(material="New Material", thickness=1.e-6)
+    new_layer.wavelengths = lmbda
+    s = make_structure(3, lmbda, thickness)
     s.add_layer(new_layer)
-    s.layers[-1].material == "New Material"
+    assert s.layers[-1].material == "New Material"
 
 def test_delete_layer():
-    s = manual_structure(3, 1.e-6, 1.e-3)
+    s = make_structure(3, 1.e-6, 1.e-3)
     s.delete_layer(1)
-    s.layers[1] == "Material_2"
-
+    assert s.layers[1].material == "Material_2"
 
 # Test yaml structure has three layers
 #   Air substrate
@@ -48,11 +46,12 @@ s_from_yaml.load_struct_from_config(yaml_config)
 
 
 def test_load_struct_from_yaml():
+    npoints = 100
     assert len(s_from_yaml.layers) == 3
-    assert len(s_from_yaml.wavelengths) == 3
-    assert len(s_from_yaml.layers[0].wavelengths) == 3
-    assert len(s_from_yaml.layers[1].wavelengths) == 3
-    assert len(s_from_yaml.layers[2].wavelengths) == 3
+    assert len(s_from_yaml.wavelengths) == npoints
+    assert len(s_from_yaml.layers[0].wavelengths) == npoints
+    assert len(s_from_yaml.layers[1].wavelengths) == npoints
+    assert len(s_from_yaml.layers[2].wavelengths) == npoints
 
 
 def test_radians_after_initialize_from_yaml():

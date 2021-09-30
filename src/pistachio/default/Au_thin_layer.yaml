@@ -1,30 +1,30 @@
 # A simple example of light passing through a single-layer material (Gold) in air.
 
-num_points: 3                   
-min_wavelength: 1.e-6           
-max_wavelength: 1.e-5           
+num_points: 100                   
+min_wavelength: 1.0           
+max_wavelength: 2.0           
 wave:
     polarization: "s-wave"
     theta_i: 0.0               
-    theta_f: 10.0              
-    num_angles: 3               
+    theta_f: 0.0              
+    num_angles: 1               
     A0: 0
     B0: 1   
 layers:
     layer0:
         material: Air  
         thickness: 0  
-        wavelength: 1.e-6  
+        wavelength: 1.0  
         refractive_index: 1.0  
         extinction_coeff: 0.0  
     layer1: 
         material: Au
-        thickness: 1.e-8
+        thickness: 10.0e-3
         refractive_filename: "Au.csv"
     layer2: 
         material: Air
         thickness: 0
-        wavelength: 1.e-6
+        wavelength: 1.0
         refractive_index: 1.0
         extinction_coeff: 0.0
 
